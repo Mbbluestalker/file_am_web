@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50: #E6F5F5;
+  --color-brand-100: #CCE0E0;
+  --color-brand-200: #99C1C1;
+  --color-brand-300: #66A2A2;
+  --color-brand-400: #338383;
+  --color-brand-500: #006F6F;
+  --color-brand-600: #005959;
+  --color-brand-700: #004343;
+  --color-brand-800: #002D2D;
+  --color-brand-900: #001717;
+  --color-brand: #006F6F;
+
+  --color-success-bg: #004617;
+  --color-success-text: #91D6A8;
+  --color-success: #91D6A8;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Add cursor pointer to all interactive elements */
+button,
+a,
+[role="button"],
+[type="button"],
+[type="submit"],
+select,
+label {
+  cursor: pointer;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
