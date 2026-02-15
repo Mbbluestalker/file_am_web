@@ -16,12 +16,22 @@
   --color-success-bg: #004617;
   --color-success-text: #91D6A8;
   --color-success: #91D6A8;
+
+  --color-vat-bg: #FFF6ED;
+  --color-filing-bg: #F9F9F9;
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
 }
 
 body {

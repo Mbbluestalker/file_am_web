@@ -27,6 +27,9 @@ export default {
           bg: '#004617',
           text: '#91D6A8',
         },
+        // Status pill background colors
+        'vat-bg': '#FFF6ED',
+        'filing-bg': '#F9F9F9',
       },
     },
   },

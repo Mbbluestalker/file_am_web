@@ -3,42 +3,42 @@ import { Link } from 'react-router-dom';
 /**
  * CLIENT CARD COMPONENT
  *
- * Displays a single client card with logo, risk status, and filing information
+ * Displays a single client card with logo, approval status, and filing information
  */
 const ClientCard = ({
   id,
   name,
   registrationNumber,
   logo,
-  riskLevel,
+  approvalStatus,
   vatStatus,
   nextFiling,
 }) => {
-  const getRiskBadge = () => {
-    if (riskLevel === 'low') {
+  const getStatusBadge = () => {
+    if (approvalStatus === 'active') {
       return (
         <div className="flex items-center !gap-1.5 !px-3 !py-1.5 bg-green-50 text-green-700 rounded-full">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
           </svg>
-          <span className="text-xs font-medium">Low Risk</span>
+          <span className="text-xs font-medium">Active</span>
         </div>
       );
     }
     return (
-      <div className="flex items-center !gap-1.5 !px-3 !py-1.5 bg-red-50 text-red-700 rounded-full">
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      <div className="flex items-center !gap-1.5 !px-3 !py-1.5 bg-orange-50 text-orange-700 rounded-full">
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+          <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
         </svg>
-        <span className="text-xs font-medium">High Risk</span>
+        <span className="text-xs font-medium">Pending Approval</span>
       </div>
     );
   };
 
   const getVatStatusColor = () => {
-    if (vatStatus === 'Registered') return 'bg-gray-100 text-gray-700';
+    if (vatStatus === 'Registered') return 'bg-gray-50 text-gray-700';
     if (vatStatus === 'Pending') return 'bg-orange-50 text-orange-700';
-    return 'bg-gray-100 text-gray-700';
+    return 'bg-gray-50 text-gray-700';
   };
 
   return (
@@ -46,7 +46,7 @@ const ClientCard = ({
       to={`/clients/${id}`}
       className="block bg-white rounded-2xl border border-gray-200 !p-6 hover:border-gray-300 hover:shadow-sm transition-all"
     >
-      {/* Header with Logo and Risk Badge */}
+      {/* Header with Status Badge */}
       <div className="flex items-start justify-between !mb-6">
         <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden flex-shrink-0">
           {logo ? (
@@ -57,7 +57,7 @@ const ClientCard = ({
             </span>
           )}
         </div>
-        {getRiskBadge()}
+        {getStatusBadge()}
       </div>
 
       {/* Company Info */}
@@ -87,14 +87,14 @@ const ClientCard = ({
 
       {/* Status Pills */}
       <div className="flex items-center !gap-3">
-        <div className="flex flex-col !gap-1">
+        <div className="flex flex-col !gap-1 !px-2.5 !py-2 rounded bg-vat-bg">
           <span className="text-xs text-gray-400">VAT</span>
-          <span className={`text-xs font-medium !px-2.5 !py-1 rounded ${getVatStatusColor()}`}>
+          <span className={`text-xs font-medium ${vatStatus === 'Pending' ? 'text-orange-700' : 'text-gray-700'}`}>
             {vatStatus}
           </span>
         </div>
         {nextFiling && (
-          <div className="flex flex-col !gap-1">
+          <div className="flex flex-col !gap-1 !px-2.5 !py-2 rounded bg-filing-bg">
             <span className="text-xs text-gray-400">Next Filing</span>
             <span className="text-xs font-medium text-gray-700">
               {nextFiling}

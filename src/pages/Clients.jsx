@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Header from '../components/layout/Header';
 import SearchBar from '../components/common/SearchBar';
 import ClientCard from '../components/clients/ClientCard';
+import AddBusinessOwnerModal from '../components/modals/AddBusinessOwnerModal';
 import { clients } from '../data/clientsData';
 
 /**
@@ -11,6 +12,7 @@ import { clients } from '../data/clientsData';
  */
 const Clients = () => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Filter clients based on search query
   const filteredClients = clients.filter((client) =>
@@ -26,11 +28,22 @@ const Clients = () => {
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-[1280px] mx-auto !px-8 !py-10">
           {/* Page Header */}
-          <div className="!mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 !mb-2">Clients</h1>
-            <p className="text-sm text-gray-500">
-              Select a client to view their tax dashboard and manage compliance
-            </p>
+          <div className="flex items-start justify-between !mb-8">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 !mb-2">Clients</h1>
+              <p className="text-sm text-gray-500">
+                Businesses you manage under your consulting profile
+              </p>
+            </div>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center !gap-2 bg-teal-600 hover:bg-teal-700 text-white !px-4 !py-2.5 rounded-lg font-medium transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Business Owner
+            </button>
           </div>
 
           {/* Search Bar */}
@@ -57,6 +70,9 @@ const Clients = () => {
           )}
         </div>
       </main>
+
+      {/* Add Business Owner Modal */}
+      <AddBusinessOwnerModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </div>
   );
 };
