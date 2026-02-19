@@ -3,6 +3,9 @@ import Dashboard from './pages/Dashboard';
 import Clients from './pages/Clients';
 import ClientDashboard from './pages/ClientDashboard';
 import BusinessProfile from './pages/BusinessProfile';
+import TaxComputation from './pages/TaxComputation';
+import Financials from './pages/Financials';
+import ReviewInvoice from './pages/ReviewInvoice';
 import ComingSoon from './pages/ComingSoon';
 
 /**
@@ -27,10 +30,17 @@ function App() {
         {/* Business Profile Route */}
         <Route path="/clients/:clientId/business-profile" element={<BusinessProfile />} />
 
+        {/* Tax Computation Route */}
+        <Route path="/clients/:clientId/tax-computation" element={<TaxComputation />} />
+
+        {/* Financials Route */}
+        <Route path="/clients/:clientId/financials" element={<Financials />} />
+
+        {/* Review Invoice Route */}
+        <Route path="/clients/:clientId/financials/review/:invoiceId" element={<ReviewInvoice />} />
+
         {/* Client Sub-Routes - Coming Soon */}
-        <Route path="/clients/:clientId/financials" element={<ComingSoon />} />
         <Route path="/clients/:clientId/profitability" element={<ComingSoon />} />
-        <Route path="/clients/:clientId/tax-computation" element={<ComingSoon />} />
         <Route path="/clients/:clientId/filings" element={<ComingSoon />} />
         <Route path="/clients/:clientId/evidence-vault" element={<ComingSoon />} />
 

@@ -149,7 +149,7 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 relative shadow-2xl">
+      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[95vh] overflow-y-auto p-6 relative shadow-2xl">
         {/* Close Button */}
         <button
           onClick={handleClose}
@@ -161,10 +161,10 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
         </button>
 
         {/* Title */}
-        <h2 className="text-3xl font-bold text-gray-900 mb-8">Add Business Owner</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">Add Business Owner</h2>
 
         {/* Tabs */}
-        <div className="flex gap-6 mb-8 border-b border-gray-200">
+        <div className="flex gap-6 mb-6 border-b border-gray-200">
           <button
             onClick={() => {
               setActiveTab('search');
@@ -298,10 +298,10 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
         {/* Invite New Tab */}
         {activeTab === 'invite' && (
           <form onSubmit={handleInviteSubmit}>
-            <div className="space-y-5">
+            <div className="space-y-4">
               {/* Business Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-1.5">
                   Business Name <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -316,7 +316,7 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
 
               {/* RC Number */}
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-1.5">
                   RC Number (Optional)
                 </label>
                 <input
@@ -324,13 +324,13 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
                   value={formData.rcNumber}
                   onChange={(e) => setFormData({ ...formData, rcNumber: e.target.value })}
                   placeholder="Enter RC number"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm placeholder:text-gray-400"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm placeholder:text-gray-400"
                 />
               </div>
 
               {/* Contact Person Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-1.5">
                   Contact Person Name <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -339,13 +339,13 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
                   onChange={(e) => setFormData({ ...formData, contactName: e.target.value })}
                   placeholder="Enter contact person name"
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm placeholder:text-gray-400"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm placeholder:text-gray-400"
                 />
               </div>
 
               {/* Email Address */}
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-1.5">
                   Email Address <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -354,13 +354,13 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="Enter email address"
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm placeholder:text-gray-400"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm placeholder:text-gray-400"
                 />
               </div>
 
               {/* Phone Number */}
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-1.5">
                   Phone Number (Optional)
                 </label>
                 <input
@@ -368,13 +368,13 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="Enter phone number"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm placeholder:text-gray-400"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm placeholder:text-gray-400"
                 />
               </div>
 
               {/* State of Operation */}
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-1.5">
                   State of Operation <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -383,13 +383,13 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
                   onChange={(e) => setFormData({ ...formData, state: e.target.value })}
                   placeholder="Enter state"
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm placeholder:text-gray-400"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm placeholder:text-gray-400"
                 />
               </div>
 
               {/* Tax Types Managed */}
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-3">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Tax Types Managed <span className="text-red-500">*</span>
                 </label>
                 <div className="grid grid-cols-2 gap-3">
@@ -412,7 +412,7 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-4 mt-8">
+            <div className="flex gap-4 mt-6">
               <button
                 type="button"
                 onClick={handleClose}

@@ -10,6 +10,10 @@ const Header = ({ hideLogo = false }) => {
   const location = useLocation();
 
   const isActive = (path) => {
+    // Check if we're on the exact path or any client sub-path
+    if (path === '/clients') {
+      return location.pathname === path || location.pathname.startsWith('/clients/');
+    }
     return location.pathname === path;
   };
 
