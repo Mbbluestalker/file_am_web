@@ -7,6 +7,12 @@ import TaxComputation from './pages/TaxComputation';
 import Financials from './pages/Financials';
 import ReviewInvoice from './pages/ReviewInvoice';
 import ComingSoon from './pages/ComingSoon';
+import Onboarding from './pages/Onboarding';
+import Login from './pages/Login';
+import EmailSignup from './pages/EmailSignup';
+import EmailVerification from './pages/EmailVerification';
+import SetPassword from './pages/SetPassword';
+import ProtectedRoute from './components/ProtectedRoute';
 
 /**
  * MAIN APP COMPONENT
@@ -18,37 +24,108 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Dashboard Route */}
-        <Route path="/" element={<Dashboard />} />
+        {/* Auth Routes */}
+        <Route path="/login" element={<Login />} />
 
-        {/* Clients Route */}
-        <Route path="/clients" element={<Clients />} />
+        {/* Signup Flow (Pre-onboarding) */}
+        <Route path="/signup" element={<EmailSignup />} />
+        <Route path="/signup/verify" element={<EmailVerification />} />
+        <Route path="/signup/password" element={<SetPassword />} />
 
-        {/* Client Dashboard Route */}
-        <Route path="/clients/:clientId" element={<ClientDashboard />} />
+        {/* Onboarding Route - Protected */}
+        <Route path="/onboarding" element={
+          <ProtectedRoute>
+            <Onboarding />
+          </ProtectedRoute>
+        } />
 
-        {/* Business Profile Route */}
-        <Route path="/clients/:clientId/business-profile" element={<BusinessProfile />} />
+        {/* Dashboard Route - Protected */}
+        <Route path="/" element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        } />
 
-        {/* Tax Computation Route */}
-        <Route path="/clients/:clientId/tax-computation" element={<TaxComputation />} />
+        {/* Clients Route - Protected */}
+        <Route path="/clients" element={
+          <ProtectedRoute>
+            <Clients />
+          </ProtectedRoute>
+        } />
 
-        {/* Financials Route */}
-        <Route path="/clients/:clientId/financials" element={<Financials />} />
+        {/* Client Dashboard Route - Protected */}
+        <Route path="/clients/:clientId" element={
+          <ProtectedRoute>
+            <ClientDashboard />
+          </ProtectedRoute>
+        } />
 
-        {/* Review Invoice Route */}
-        <Route path="/clients/:clientId/financials/review/:invoiceId" element={<ReviewInvoice />} />
+        {/* Business Profile Route - Protected */}
+        <Route path="/clients/:clientId/business-profile" element={
+          <ProtectedRoute>
+            <BusinessProfile />
+          </ProtectedRoute>
+        } />
 
-        {/* Client Sub-Routes - Coming Soon */}
-        <Route path="/clients/:clientId/profitability" element={<ComingSoon />} />
-        <Route path="/clients/:clientId/filings" element={<ComingSoon />} />
-        <Route path="/clients/:clientId/evidence-vault" element={<ComingSoon />} />
+        {/* Tax Computation Route - Protected */}
+        <Route path="/clients/:clientId/tax-computation" element={
+          <ProtectedRoute>
+            <TaxComputation />
+          </ProtectedRoute>
+        } />
 
-        {/* Main Navigation Routes - Coming Soon */}
-        <Route path="/taxgpt" element={<ComingSoon />} />
-        <Route path="/reports" element={<ComingSoon />} />
-        <Route path="/compliance" element={<ComingSoon />} />
-        <Route path="/settings" element={<ComingSoon />} />
+        {/* Financials Route - Protected */}
+        <Route path="/clients/:clientId/financials" element={
+          <ProtectedRoute>
+            <Financials />
+          </ProtectedRoute>
+        } />
+
+        {/* Review Invoice Route - Protected */}
+        <Route path="/clients/:clientId/financials/review/:invoiceId" element={
+          <ProtectedRoute>
+            <ReviewInvoice />
+          </ProtectedRoute>
+        } />
+
+        {/* Client Sub-Routes - Coming Soon - Protected */}
+        <Route path="/clients/:clientId/profitability" element={
+          <ProtectedRoute>
+            <ComingSoon />
+          </ProtectedRoute>
+        } />
+        <Route path="/clients/:clientId/filings" element={
+          <ProtectedRoute>
+            <ComingSoon />
+          </ProtectedRoute>
+        } />
+        <Route path="/clients/:clientId/evidence-vault" element={
+          <ProtectedRoute>
+            <ComingSoon />
+          </ProtectedRoute>
+        } />
+
+        {/* Main Navigation Routes - Coming Soon - Protected */}
+        <Route path="/taxgpt" element={
+          <ProtectedRoute>
+            <ComingSoon />
+          </ProtectedRoute>
+        } />
+        <Route path="/reports" element={
+          <ProtectedRoute>
+            <ComingSoon />
+          </ProtectedRoute>
+        } />
+        <Route path="/compliance" element={
+          <ProtectedRoute>
+            <ComingSoon />
+          </ProtectedRoute>
+        } />
+        <Route path="/settings" element={
+          <ProtectedRoute>
+            <ComingSoon />
+          </ProtectedRoute>
+        } />
 
         {/* Catch all - redirect to home */}
         <Route path="*" element={<Navigate to="/" replace />} />
