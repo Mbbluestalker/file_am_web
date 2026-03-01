@@ -12,6 +12,8 @@ import Login from './pages/Login';
 import EmailSignup from './pages/EmailSignup';
 import EmailVerification from './pages/EmailVerification';
 import SetPassword from './pages/SetPassword';
+import ForgotPassword from './pages/ForgotPassword';
+import VerifyResetCode from './pages/VerifyResetCode';
 import ProtectedRoute from './components/ProtectedRoute';
 
 /**
@@ -31,6 +33,10 @@ function App() {
         <Route path="/signup" element={<EmailSignup />} />
         <Route path="/signup/verify" element={<EmailVerification />} />
         <Route path="/signup/password" element={<SetPassword />} />
+
+        {/* Forgot Password Flow */}
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/forgot-password/verify" element={<VerifyResetCode />} />
 
         {/* Onboarding Route - Protected */}
         <Route path="/onboarding" element={

@@ -78,6 +78,74 @@ export const logout = () => {
 };
 
 /**
+ * FORGOT PASSWORD
+ * Send password reset code to email
+ */
+export const forgotPassword = async (email) => {
+  try {
+    const response = await fetch(
+      `${BASE_URL}/api/v${API_VERSION}/enterprise/auth/forgot-password`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || `API Error: ${response.status}`);
+    }
+
+    // Store email for next steps
+    localStorage.setItem('resetPasswordEmail', email);
+
+    return result;
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    throw error;
+  }
+};
+
+
+/**
+ * RESET PASSWORD
+ * Reset password with verified code
+ */
+export const resetPassword = async (email, code, newPassword) => {
+  try {
+    const response = await fetch(
+      `${BASE_URL}/api/v${API_VERSION}/enterprise/auth/reset-password`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, code, newPassword }),
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || `API Error: ${response.status}`);
+    }
+
+    // Clear reset-related data
+    localStorage.removeItem('resetPasswordEmail');
+    localStorage.removeItem('resetToken');
+
+    return result;
+  } catch (error) {
+    console.error('Reset password error:', error);
+    throw error;
+  }
+};
+
+/**
  * EMAIL SIGNUP (Pre-onboarding)
  * Send verification email before starting onboarding
  */
