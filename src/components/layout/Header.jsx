@@ -12,9 +12,12 @@ const Header = ({ hideLogo = false }) => {
   const navigate = useNavigate();
 
   const isActive = (path) => {
-    // Check if we're on the exact path or any client sub-path
+    // Check if we're on the exact path or any sub-path
     if (path === '/clients') {
       return location.pathname === path || location.pathname.startsWith('/clients/');
+    }
+    if (path === '/filings') {
+      return location.pathname === path || location.pathname.startsWith('/filings/');
     }
     return location.pathname === path;
   };
@@ -56,6 +59,23 @@ const Header = ({ hideLogo = false }) => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
             <span className="text-sm font-medium">Clients</span>
+          </Link>
+
+          <Link
+            to="/filings"
+            className={`flex items-center gap-2 transition-colors relative ${
+              isActive('/filings')
+                ? 'text-brand'
+                : 'text-gray-400 hover:text-gray-700'
+            }`}
+          >
+            {isActive('/filings') && (
+              <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-brand"></div>
+            )}
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+            </svg>
+            <span className="text-sm font-medium">Filings</span>
           </Link>
 
           <Link to="/taxgpt" className="flex items-center gap-2 text-gray-400 hover:text-gray-700 transition-colors">

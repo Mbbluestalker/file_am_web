@@ -6,6 +6,10 @@ import BusinessProfile from './pages/BusinessProfile';
 import TaxComputation from './pages/TaxComputation';
 import Financials from './pages/Financials';
 import ReviewInvoice from './pages/ReviewInvoice';
+import Filings from './pages/Filings';
+import FilingDetail from './pages/FilingDetail';
+import SubmitVATReturn from './pages/SubmitVATReturn';
+import PaymentConfirmation from './pages/PaymentConfirmation';
 import ComingSoon from './pages/ComingSoon';
 import Onboarding from './pages/Onboarding';
 import Login from './pages/Login';
@@ -15,6 +19,7 @@ import SetPassword from './pages/SetPassword';
 import ForgotPassword from './pages/ForgotPassword';
 import VerifyResetCode from './pages/VerifyResetCode';
 import ProtectedRoute from './components/ProtectedRoute';
+import TokenDebugger from './components/TokenDebugger';
 
 /**
  * MAIN APP COMPONENT
@@ -25,6 +30,9 @@ import ProtectedRoute from './components/ProtectedRoute';
 function App() {
   return (
     <BrowserRouter>
+      {/* Token Debugger - Only in development */}
+      {import.meta.env.DEV && <TokenDebugger />}
+
       <Routes>
         {/* Auth Routes */}
         <Route path="/login" element={<Login />} />
@@ -108,6 +116,28 @@ function App() {
         <Route path="/clients/:clientId/evidence-vault" element={
           <ProtectedRoute>
             <ComingSoon />
+          </ProtectedRoute>
+        } />
+
+        {/* Filings Routes - Protected */}
+        <Route path="/filings" element={
+          <ProtectedRoute>
+            <Filings />
+          </ProtectedRoute>
+        } />
+        <Route path="/filings/:id" element={
+          <ProtectedRoute>
+            <FilingDetail />
+          </ProtectedRoute>
+        } />
+        <Route path="/filings/:id/submit" element={
+          <ProtectedRoute>
+            <SubmitVATReturn />
+          </ProtectedRoute>
+        } />
+        <Route path="/filings/:id/confirmation" element={
+          <ProtectedRoute>
+            <PaymentConfirmation />
           </ProtectedRoute>
         } />
 
