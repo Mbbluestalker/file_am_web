@@ -199,9 +199,9 @@ const Sidebar = ({ clientId }) => {
                 <span>Filings</span>
               </Link>
               <Link
-                to={`/clients/${clientId}/evidence-vault`}
+                to="/evidence-vault"
                 className={`flex items-center !gap-3 !px-6 !py-2.5 text-sm ${
-                  isActive(`/clients/${clientId}/evidence-vault`)
+                  location.pathname.startsWith('/evidence-vault')
                     ? 'bg-brand text-white !mx-4 rounded-xl'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 }`}

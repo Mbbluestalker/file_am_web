@@ -10,6 +10,8 @@ import Filings from './pages/Filings';
 import FilingDetail from './pages/FilingDetail';
 import SubmitVATReturn from './pages/SubmitVATReturn';
 import PaymentConfirmation from './pages/PaymentConfirmation';
+import EvidenceVault from './pages/EvidenceVault';
+import DocumentDetail from './pages/DocumentDetail';
 import ComingSoon from './pages/ComingSoon';
 import Onboarding from './pages/Onboarding';
 import Login from './pages/Login';
@@ -138,6 +140,18 @@ function App() {
         <Route path="/filings/:id/confirmation" element={
           <ProtectedRoute>
             <PaymentConfirmation />
+          </ProtectedRoute>
+        } />
+
+        {/* Evidence Vault Routes - Protected */}
+        <Route path="/evidence-vault" element={
+          <ProtectedRoute>
+            <EvidenceVault />
+          </ProtectedRoute>
+        } />
+        <Route path="/evidence-vault/:id" element={
+          <ProtectedRoute>
+            <DocumentDetail />
           </ProtectedRoute>
         } />
 
