@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { clients } from '../../data/clientsData';
+import { searchBusinesses, sendBusinessInvitation } from '../../services/onboardingApi';
 
 /**
  * ADD BUSINESS OWNER MODAL
@@ -11,8 +11,12 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState('search'); // 'search' or 'invite'
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successType, setSuccessType] = useState(''); // 'pending' or 'sent'
+  const [isSubmittingInvite, setIsSubmittingInvite] = useState(false);
+  const [inviteError, setInviteError] = useState(null);
   const [formData, setFormData] = useState({
     businessName: '',
     rcNumber: '',
@@ -25,40 +29,113 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  const handleSearch = (e) => {
+  const handleSearch = async (e) => {
     e.preventDefault();
-    // Search through client data
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      const foundClient = clients.find(
-        (client) =>
-          client.name.toLowerCase().includes(query) ||
-          client.registrationNumber.toLowerCase().includes(query)
-      );
 
-      if (foundClient) {
+    if (!searchQuery.trim()) {
+      setSearchError('Please enter a search query');
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchError(null);
+    setSearchResults(null);
+
+    try {
+      const response = await searchBusinesses(searchQuery.trim());
+
+      if (response.status && response.data && response.data.length > 0) {
+        // Take the first result
+        const business = response.data[0];
         setSearchResults({
-          name: foundClient.name,
-          rcNumber: foundClient.registrationNumber,
-          email: `info@${foundClient.name.toLowerCase().replace(/\s+/g, '')}.ng`,
-          taxId: `TIN-${Math.floor(Math.random() * 90000000) + 10000000}`,
+          id: business.id,
+          name: business.name,
+          rcNumber: business.rcNumber || 'N/A',
+          email: business.email,
+          tin: business.tin || 'N/A',
+          ownerName: business.ownerName,
+          state: business.stateOfResidence,
+          incomeType: business.incomeType,
           status: 'Active on FileAm',
         });
       } else {
-        setSearchResults(null);
+        setSearchError('No businesses found matching your search');
       }
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchError(error.message || 'Failed to search businesses. Please try again.');
+    } finally {
+      setIsSearching(false);
     }
   };
 
-  const handleRequestAccess = () => {
-    setShowSuccess(true);
-    setSuccessType('pending');
+  const handleRequestAccess = async () => {
+    setIsSearching(true);
+    setSearchError(null);
+
+    try {
+      // Prepare invitation data with companyId for existing business
+      const invitationData = {
+        companyId: searchResults.id,
+        invitedEmail: searchResults.email,
+        invitedBusinessName: searchResults.name,
+        invitedContactName: searchResults.ownerName,
+        invitedRcNumber: searchResults.rcNumber !== 'N/A' ? searchResults.rcNumber : undefined,
+        invitedPhone: undefined, // Not available from search results
+        stateOfOperation: searchResults.state,
+        taxTypesManaged: [], // Will need to be filled by the business owner
+        expiresInHours: 168, // 7 days default
+      };
+
+      const response = await sendBusinessInvitation(invitationData);
+
+      if (response.status) {
+        setShowSuccess(true);
+        setSuccessType('pending');
+      } else {
+        setSearchError(response.message || 'Failed to request management access');
+      }
+    } catch (error) {
+      console.error('Request access error:', error);
+      setSearchError(error.message || 'Failed to request management access. Please try again.');
+    } finally {
+      setIsSearching(false);
+    }
   };
 
-  const handleInviteSubmit = (e) => {
+  const handleInviteSubmit = async (e) => {
     e.preventDefault();
-    setShowSuccess(true);
-    setSuccessType('sent');
+
+    setIsSubmittingInvite(true);
+    setInviteError(null);
+
+    try {
+      // Prepare invitation data according to API spec
+      const invitationData = {
+        invitedEmail: formData.email,
+        invitedBusinessName: formData.businessName,
+        invitedContactName: formData.contactName,
+        invitedRcNumber: formData.rcNumber || undefined, // Optional field
+        invitedPhone: formData.phone || undefined, // Optional field
+        stateOfOperation: formData.state,
+        taxTypesManaged: formData.taxTypes,
+        expiresInHours: 168, // 7 days default
+      };
+
+      const response = await sendBusinessInvitation(invitationData);
+
+      if (response.status) {
+        setShowSuccess(true);
+        setSuccessType('sent');
+      } else {
+        setInviteError(response.message || 'Failed to send invitation');
+      }
+    } catch (error) {
+      console.error('Invitation error:', error);
+      setInviteError(error.message || 'Failed to send invitation. Please try again.');
+    } finally {
+      setIsSubmittingInvite(false);
+    }
   };
 
   const handleTaxTypeToggle = (type) => {
@@ -73,6 +150,10 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
   const handleClose = () => {
     setSearchQuery('');
     setSearchResults(null);
+    setIsSearching(false);
+    setSearchError(null);
+    setIsSubmittingInvite(false);
+    setInviteError(null);
     setShowSuccess(false);
     setSuccessType('');
     setFormData({
@@ -135,11 +216,15 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
               </svg>
             </div>
             <h3 className="text-2xl font-bold text-green-700 mb-3">
-              {successType === 'pending' ? 'Pending Approval' : 'Invitation Sent Successfully'}
+              {successType === 'pending' ? 'Access Request Sent' : 'Invitation Sent Successfully'}
             </h3>
-            <p className="text-sm text-gray-600 mb-1">Status: Pending Acceptance</p>
+            <p className="text-sm text-gray-600 mb-1">
+              {successType === 'pending' ? 'Status: Awaiting Business Owner Approval' : 'Status: Pending Acceptance'}
+            </p>
             <p className="text-sm text-gray-600">
-              The business owner will receive an email invitation to join FileAm.
+              {successType === 'pending'
+                ? 'The business owner will receive an email to approve your management access request.'
+                : 'The business owner will receive an email invitation to join FileAm.'}
             </p>
           </div>
         </div>
@@ -169,6 +254,7 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
             onClick={() => {
               setActiveTab('search');
               setSearchResults(null);
+              setSearchError(null);
             }}
             className={`pb-3 px-1 font-medium transition-colors ${
               activeTab === 'search'
@@ -194,29 +280,65 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
         {activeTab === 'search' && (
           <div>
             <form onSubmit={handleSearch}>
-              <div className="relative mb-6">
-                <svg
-                  className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              <div className="flex gap-3 mb-6">
+                <div className="relative flex-1">
+                  <svg
+                    className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setSearchError(null);
+                    }}
+                    placeholder="Search by business name, RC number, or email"
+                    className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                    disabled={isSearching}
                   />
-                </svg>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by business name, RC number, or email"
-                  className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
-                />
+                  {isSearching && (
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                      <svg className="animate-spin h-5 w-5 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="submit"
+                  disabled={isSearching || !searchQuery.trim()}
+                  className="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  Search
+                </button>
               </div>
             </form>
+
+            {/* Error Message */}
+            {searchError && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+                <div className="flex items-start gap-2">
+                  <svg className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                  <p className="text-sm text-red-800">{searchError}</p>
+                </div>
+              </div>
+            )}
 
             {!searchResults ? (
               <div className="bg-gray-100 rounded-xl p-16 text-center border border-gray-200">
@@ -264,7 +386,23 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
                         <path fillRule="evenodd" d="M12 1.5a.75.75 0 01.75.75V4.5a.75.75 0 01-1.5 0V2.25A.75.75 0 0112 1.5zM5.636 4.136a.75.75 0 011.06 0l1.592 1.591a.75.75 0 01-1.061 1.06l-1.591-1.59a.75.75 0 010-1.061zm12.728 0a.75.75 0 010 1.06l-1.591 1.592a.75.75 0 01-1.06-1.061l1.59-1.591a.75.75 0 011.061 0zm-6.816 4.496a.75.75 0 01.562.813 8.25 8.25 0 1016.5 0 .75.75 0 011.562-.813 9.75 9.75 0 11-19.5 0 .75.75 0 01.813-.562zM12 7.5a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V8.25A.75.75 0 0112 7.5z" clipRule="evenodd" />
                       </svg>
                       <span className="text-gray-700">
-                        <span className="font-medium">Tax ID:</span> {searchResults.taxId}
+                        <span className="font-medium">TIN:</span> {searchResults.tin}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                        <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-gray-700">
+                        <span className="font-medium">Owner:</span> {searchResults.ownerName}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                        <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-gray-700">
+                        <span className="font-medium">State:</span> {searchResults.state}
                       </span>
                     </div>
                   </div>
@@ -279,15 +417,23 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
                 <div className="flex gap-4">
                   <button
                     onClick={() => setSearchResults(null)}
-                    className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                    disabled={isSearching}
+                    className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Back to Search
                   </button>
                   <button
                     onClick={handleRequestAccess}
-                    className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
+                    disabled={isSearching}
+                    className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    Request Management Access
+                    {isSearching && (
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    )}
+                    {isSearching ? 'Requesting...' : 'Request Management Access'}
                   </button>
                 </div>
               </div>
@@ -298,6 +444,18 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
         {/* Invite New Tab */}
         {activeTab === 'invite' && (
           <form onSubmit={handleInviteSubmit}>
+            {/* Error Message */}
+            {inviteError && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+                <div className="flex items-start gap-2">
+                  <svg className="w-5 h-5 text-red-600 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                  <p className="text-sm text-red-800">{inviteError}</p>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-4">
               {/* Business Name */}
               <div>
@@ -307,10 +465,14 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
                 <input
                   type="text"
                   value={formData.businessName}
-                  onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, businessName: e.target.value });
+                    setInviteError(null);
+                  }}
                   placeholder="Enter business name"
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm placeholder:text-gray-400"
+                  disabled={isSubmittingInvite}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm placeholder:text-gray-400 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -416,16 +578,23 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
               <button
                 type="button"
                 onClick={handleClose}
-                className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                disabled={isSubmittingInvite}
+                className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={!formData.businessName || !formData.contactName || !formData.email || !formData.state || formData.taxTypes.length === 0}
-                className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                disabled={isSubmittingInvite || !formData.businessName || !formData.contactName || !formData.email || !formData.state || formData.taxTypes.length === 0}
+                className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Send Invitation
+                {isSubmittingInvite && (
+                  <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                )}
+                {isSubmittingInvite ? 'Sending...' : 'Send Invitation'}
               </button>
             </div>
           </form>

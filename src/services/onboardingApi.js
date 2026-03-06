@@ -541,6 +541,33 @@ export const saveDraft = async (step, data) => {
   return response;
 };
 
+/**
+ * SEARCH BUSINESSES
+ * Search for existing businesses on FileAm platform
+ * @param {string} query - Search query (business name, RC number, or email)
+ */
+export const searchBusinesses = async (query) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/businesses?q=${encodeURIComponent(query)}`,
+    'GET'
+  );
+  return response;
+};
+
+/**
+ * SEND BUSINESS INVITATION
+ * Invite a new business to join FileAm and grant management access
+ * @param {Object} invitationData - Invitation details
+ */
+export const sendBusinessInvitation = async (invitationData) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/invitation`,
+    'POST',
+    invitationData
+  );
+  return response;
+};
+
 export default {
   login,
   logout,
@@ -557,4 +584,6 @@ export default {
   getOnboardingStatus,
   saveDraft,
   getAccessToken,
+  searchBusinesses,
+  sendBusinessInvitation,
 };
