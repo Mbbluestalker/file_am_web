@@ -344,7 +344,7 @@ const makeRequest = async (endpoint, method = 'GET', data = null) => {
  */
 export const submitStep1 = async (data) => {
   const response = await makeRequest(
-    `/api/v${API_VERSION}/enterprise/consultant-onboarding/step/1`,
+    `/api/v${API_VERSION}/enterprise/onboarding/consultant/step/1`,
     'POST',
     data
   );
@@ -356,7 +356,7 @@ export const submitStep1 = async (data) => {
  */
 export const submitStep2 = async (data) => {
   const response = await makeRequest(
-    `/api/v${API_VERSION}/enterprise/consultant-onboarding/step/2`,
+    `/api/v${API_VERSION}/enterprise/onboarding/consultant/step/2`,
     'POST',
     data
   );
@@ -368,7 +368,7 @@ export const submitStep2 = async (data) => {
  */
 export const submitStep3 = async (data) => {
   const response = await makeRequest(
-    `/api/v${API_VERSION}/enterprise/consultant-onboarding/step/3`,
+    `/api/v${API_VERSION}/enterprise/onboarding/consultant/step/3`,
     'POST',
     data
   );
@@ -380,7 +380,7 @@ export const submitStep3 = async (data) => {
  */
 export const submitStep4 = async (data) => {
   const response = await makeRequest(
-    `/api/v${API_VERSION}/enterprise/consultant-onboarding/step/4`,
+    `/api/v${API_VERSION}/enterprise/onboarding/consultant/step/4`,
     'POST',
     data
   );
@@ -392,7 +392,7 @@ export const submitStep4 = async (data) => {
  */
 export const submitStep5 = async (data) => {
   const response = await makeRequest(
-    `/api/v${API_VERSION}/enterprise/consultant-onboarding/step/5`,
+    `/api/v${API_VERSION}/enterprise/onboarding/consultant/step/5`,
     'POST',
     data
   );
@@ -404,7 +404,7 @@ export const submitStep5 = async (data) => {
  */
 export const submitStep6 = async (data) => {
   const response = await makeRequest(
-    `/api/v${API_VERSION}/enterprise/consultant-onboarding/step/6`,
+    `/api/v${API_VERSION}/enterprise/onboarding/consultant/step/6`,
     'POST',
     data
   );
@@ -455,7 +455,7 @@ export const uploadFile = async (file) => {
  */
 export const submitStep7 = async (data) => {
   const response = await makeRequest(
-    `/api/v${API_VERSION}/enterprise/consultant-onboarding/step/7`,
+    `/api/v${API_VERSION}/enterprise/onboarding/consultant/step/7`,
     'POST',
     data
   );
@@ -467,7 +467,7 @@ export const submitStep7 = async (data) => {
  */
 export const activateAccount = async () => {
   const response = await makeRequest(
-    `/api/v${API_VERSION}/enterprise/consultant-onboarding/activate`,
+    `/api/v${API_VERSION}/enterprise/onboarding/consultant/activate`,
     'POST'
   );
 
@@ -490,7 +490,7 @@ export const getOnboardingProfile = async () => {
     console.log('Attempting to fetch profile with access token');
 
     const response = await axios.get(
-      `${BASE_URL}/api/v${API_VERSION}/enterprise/consultant-onboarding/profile`,
+      `${BASE_URL}/api/v${API_VERSION}/enterprise/onboarding/consultant/profile`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`
@@ -523,7 +523,7 @@ export const getOnboardingProfile = async () => {
  */
 export const getOnboardingStatus = async () => {
   const response = await makeRequest(
-    `/api/v${API_VERSION}/enterprise/consultant-onboarding/status`,
+    `/api/v${API_VERSION}/enterprise/onboarding/consultant/status`,
     'GET'
   );
   return response;
@@ -534,7 +534,7 @@ export const getOnboardingStatus = async () => {
  */
 export const saveDraft = async (step, data) => {
   const response = await makeRequest(
-    `/api/v${API_VERSION}/enterprise/consultant-onboarding/draft`,
+    `/api/v${API_VERSION}/enterprise/onboarding/consultant/draft`,
     'POST',
     { step, data }
   );
@@ -568,6 +568,262 @@ export const sendBusinessInvitation = async (invitationData) => {
   return response;
 };
 
+/**
+ * REQUEST CLIENT MANAGEMENT ACCESS
+ * Request management access to an existing business on FileAm
+ * @param {string} requestedUserId - The userId of the business owner
+ */
+export const requestClientManagementAccess = async (requestedUserId) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/client-requests`,
+    'POST',
+    { requestedUserId }
+  );
+  return response;
+};
+
+/**
+ * ACCEPT TEAM INVITATION
+ * Accept a team invitation using invitation ID
+ * @param {string} invitationId - The invitation ID from the URL
+ */
+export const acceptTeamInvitation = async (invitationId) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/mobile/consultant-requests/${invitationId}/accept`,
+    'POST'
+  );
+  return response;
+};
+
+/**
+ * GET CLIENTS
+ * Fetch all clients for the authenticated consultant
+ */
+export const getClients = async () => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/clients`,
+    'GET'
+  );
+  return response;
+};
+
+/**
+ * GET CLIENT BY ID
+ * Fetch a single client by their company ID
+ * @param {string} clientId - The company ID of the client
+ */
+export const getClientById = async (clientId) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/clients/${clientId}`,
+    'GET'
+  );
+  return response;
+};
+
+/**
+ * GET BUSINESS PROFILE
+ * Fetch business profile for a specific company
+ * @param {string} companyId - The company ID
+ */
+export const getBusinessProfile = async (companyId) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/clients/${companyId}/business-profile`,
+    'GET'
+  );
+  return response;
+};
+
+/**
+ * UPDATE BUSINESS PROFILE
+ * Update business profile for a specific company
+ * @param {string} companyId - The company ID
+ * @param {Object} profileData - The business profile data to update
+ */
+export const updateBusinessProfile = async (companyId, profileData) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/clients/${companyId}/business-profile`,
+    'PUT',
+    profileData
+  );
+  return response;
+};
+
+/**
+ * GET BUSINESS TYPES
+ * Fetch available business types
+ */
+export const getBusinessTypes = async () => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/business-profile/types`,
+    'GET'
+  );
+  return response;
+};
+
+/**
+ * GET INDUSTRIES
+ * Fetch available industries
+ */
+export const getIndustries = async () => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/business-profile/industries`,
+    'GET'
+  );
+  return response;
+};
+
+/**
+ * GET INVOICES
+ * Fetch invoices for a specific company
+ * @param {string} companyId - The company ID
+ * @param {number} page - Page number (default: 1)
+ * @param {number} limit - Items per page (default: 10)
+ */
+export const getInvoices = async (companyId, page = 1, limit = 10) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/clients/${companyId}/financials/invoices?page=${page}&limit=${limit}`,
+    'GET'
+  );
+  return response;
+};
+
+// ============================================
+// TAX COMPUTATION API FUNCTIONS
+// ============================================
+
+/**
+ * GET VAT COMPUTATION STATUS
+ * Check if company has any VAT computation data
+ * @param {string} companyId - The company ID
+ */
+export const getVatComputationStatus = async (companyId) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/company/${companyId}/vat-computation/status`,
+    'GET'
+  );
+  return response;
+};
+
+/**
+ * INITIATE VAT SETUP
+ * Initiate VAT setup for first-time users
+ * @param {string} companyId - The company ID
+ */
+export const initiateVatSetup = async (companyId) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/company/${companyId}/vat-computation/initiate-setup`,
+    'POST'
+  );
+  return response;
+};
+
+/**
+ * GET VAT TYPES
+ * Fetch available VAT types for dropdown
+ * @param {string} companyId - The company ID
+ */
+export const getVatTypes = async (companyId) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/company/${companyId}/vat-computation/types`,
+    'GET'
+  );
+  return response;
+};
+
+/**
+ * GET VAT PERIODS
+ * Fetch available VAT periods for dropdown
+ * @param {string} companyId - The company ID
+ */
+export const getVatPeriods = async (companyId) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/company/${companyId}/vat-computation/periods`,
+    'GET'
+  );
+  return response;
+};
+
+/**
+ * CALCULATE VAT
+ * Submit VAT calculation with sales/purchase amounts
+ * @param {string} companyId - The company ID
+ * @param {Object} calculationData - VAT calculation data
+ */
+export const calculateVat = async (companyId, calculationData) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/company/${companyId}/vat-computation/calculate`,
+    'POST',
+    calculationData
+  );
+  return response;
+};
+
+/**
+ * GET VAT COMPUTATION RESULTS
+ * Get the most recent VAT computation results
+ * @param {string} companyId - The company ID
+ */
+export const getVatComputationResults = async (companyId) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/company/${companyId}/vat-computation/results`,
+    'GET'
+  );
+  return response;
+};
+
+/**
+ * DOWNLOAD VAT REPORT
+ * Generate and download VAT computation report
+ * @param {string} companyId - The company ID
+ */
+export const downloadVatReport = async (companyId) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/company/${companyId}/vat-computation/report/download`,
+    'GET'
+  );
+  return response;
+};
+
+/**
+ * GET MONTHLY VAT PAYABLE
+ * Get monthly VAT payable amounts for a specific year
+ * @param {string} companyId - The company ID
+ * @param {number} year - The year to fetch data for
+ */
+export const getMonthlyVatPayable = async (companyId, year) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/company/${companyId}/tax-computation/vat-payable/monthly?year=${year}`,
+    'GET'
+  );
+  return response;
+};
+
+/**
+ * GET THRESHOLD STATUS
+ * Get whether company is below, approaching, or above VAT threshold
+ * @param {string} companyId - The company ID
+ */
+export const getThresholdStatus = async (companyId) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/company/${companyId}/tax-computation/threshold-status`,
+    'GET'
+  );
+  return response;
+};
+
+/**
+ * GET THRESHOLD INFO
+ * Get threshold amount and educational information
+ * @param {string} companyId - The company ID
+ */
+export const getThresholdInfo = async (companyId) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/company/${companyId}/tax-computation/threshold-info`,
+    'GET'
+  );
+  return response;
+};
+
 export default {
   login,
   logout,
@@ -586,4 +842,24 @@ export default {
   getAccessToken,
   searchBusinesses,
   sendBusinessInvitation,
+  requestClientManagementAccess,
+  acceptTeamInvitation,
+  getClients,
+  getClientById,
+  getBusinessProfile,
+  updateBusinessProfile,
+  getBusinessTypes,
+  getIndustries,
+  getInvoices,
+  // Tax computation functions
+  getVatComputationStatus,
+  initiateVatSetup,
+  getVatTypes,
+  getVatPeriods,
+  calculateVat,
+  getVatComputationResults,
+  downloadVatReport,
+  getMonthlyVatPayable,
+  getThresholdStatus,
+  getThresholdInfo,
 };

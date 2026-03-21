@@ -158,7 +158,7 @@ const ProcessingDocumentModal = ({ isOpen, fileName, onComplete }) => {
                   : 'Extraction complete - please review carefully'}
               </p>
             ) : (
-              <p className="text-xs text-gray-400">Processing backend takes 5-10 seconds do not close this window</p>
+              <p className="text-xs text-gray-600">Processing typically takes 5-10 seconds. Do not close this window.</p>
             )}
           </div>
         </div>

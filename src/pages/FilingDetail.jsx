@@ -3,13 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronDown, ChevronRight, FileText, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/client/Sidebar';
-import { clients } from '../data/clientsData';
+import { getAllClientsFromStorage } from '../utils/clientStorage';
 
 const FilingDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
 
   // Use first client as default for sidebar navigation
+  const clients = getAllClientsFromStorage();
   const defaultClientId = clients[0]?.id || '1';
   const [expandedSections, setExpandedSections] = useState({
     invoices: true,

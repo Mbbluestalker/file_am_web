@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { uploadInvoice } from '../../services/financialsApi';
+import toast from 'react-hot-toast';
 
 /**
  * UPLOAD INVOICE MODAL
@@ -7,9 +10,11 @@ import { useState } from 'react';
  * Supports PDF and Excel files with progress tracking
  */
 const UploadInvoiceModal = ({ isOpen, onClose, onUploadComplete }) => {
+  const { clientId } = useParams();
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadMethod, setUploadMethod] = useState('pdf'); // 'pdf' or 'excel'
+  const [isUploading, setIsUploading] = useState(false);
 
   if (!isOpen) return null;
 
@@ -38,13 +43,38 @@ const UploadInvoiceModal = ({ isOpen, onClose, onUploadComplete }) => {
     }
   };
 
-  const handleUpload = () => {
-    if (selectedFile) {
-      // Trigger processing modal
-      onUploadComplete(selectedFile);
-      // Reset state
-      setSelectedFile(null);
-      setUploadMethod('pdf');
+  const handleUpload = async () => {
+    if (!selectedFile || !clientId) return;
+
+    try {
+      setIsUploading(true);
+
+      // Prepare invoice metadata
+      const invoiceData = {
+        invoiceType: uploadMethod === 'pdf' ? 'PDF' : 'Excel',
+        uploadMethod: uploadMethod.toUpperCase(),
+      };
+
+      // Upload invoice to API
+      const response = await uploadInvoice(clientId, selectedFile, invoiceData);
+
+      if (response.status) {
+        toast.success('Invoice uploaded successfully!');
+
+        // Trigger processing modal with file info
+        onUploadComplete(selectedFile);
+
+        // Reset state
+        setSelectedFile(null);
+        setUploadMethod('pdf');
+      } else {
+        throw new Error(response.message || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error(error.message || 'Failed to upload invoice');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -197,14 +227,24 @@ const UploadInvoiceModal = ({ isOpen, onClose, onUploadComplete }) => {
           </button>
           <button
             onClick={handleUpload}
-            disabled={!selectedFile}
-            className={`px-6 py-2.5 rounded-lg font-medium transition-colors ${
-              selectedFile
+            disabled={!selectedFile || isUploading}
+            className={`px-6 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+              selectedFile && !isUploading
                 ? 'bg-teal-600 hover:bg-teal-700 text-white'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >
-            Upload & Process
+            {isUploading ? (
+              <>
+                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Uploading...
+              </>
+            ) : (
+              'Upload & Process'
+            )}
           </button>
         </div>
       </div>

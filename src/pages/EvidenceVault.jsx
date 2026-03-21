@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { Search, FileText, Receipt, File, Calendar, ShieldCheck, ChevronRight } from 'lucide-react';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/client/Sidebar';
-import { clients } from '../data/clientsData';
+import { getAllClientsFromStorage } from '../utils/clientStorage';
 
 const EvidenceVault = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
 
   // Use first client as default for sidebar navigation
+  const clients = getAllClientsFromStorage();
   const defaultClientId = clients[0]?.id || '1';
 
   // Mock data for document categories

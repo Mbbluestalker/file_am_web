@@ -97,7 +97,7 @@ const ClientCard = ({
           <div className="flex flex-col !gap-1 !px-2.5 !py-2 rounded bg-filing-bg">
             <span className="text-xs text-gray-400">Next Filing</span>
             <span className="text-xs font-medium text-gray-700">
-              {nextFiling}
+              {typeof nextFiling === 'string' ? nextFiling : nextFiling.dueDate || 'N/A'}
             </span>
           </div>
         )}

@@ -1,10 +1,12 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import Dashboard from './pages/Dashboard';
 import Clients from './pages/Clients';
 import ClientDashboard from './pages/ClientDashboard';
 import BusinessProfile from './pages/BusinessProfile';
 import TaxComputation from './pages/TaxComputation';
 import Financials from './pages/Financials';
+import FinancialReports from './pages/FinancialReports';
 import ReviewInvoice from './pages/ReviewInvoice';
 import Filings from './pages/Filings';
 import FilingDetail from './pages/FilingDetail';
@@ -20,8 +22,8 @@ import EmailVerification from './pages/EmailVerification';
 import SetPassword from './pages/SetPassword';
 import ForgotPassword from './pages/ForgotPassword';
 import VerifyResetCode from './pages/VerifyResetCode';
+import AcceptInvitation from './pages/AcceptInvitation';
 import ProtectedRoute from './components/ProtectedRoute';
-import TokenDebugger from './components/TokenDebugger';
 
 /**
  * MAIN APP COMPONENT
@@ -32,8 +34,29 @@ import TokenDebugger from './components/TokenDebugger';
 function App() {
   return (
     <BrowserRouter>
-      {/* Token Debugger - Only in development */}
-      {import.meta.env.DEV && <TokenDebugger />}
+      {/* Toast Notifications */}
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: '#fff',
+            color: '#333',
+          },
+          success: {
+            iconTheme: {
+              primary: '#0d9488',
+              secondary: '#fff',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: '#ef4444',
+              secondary: '#fff',
+            },
+          },
+        }}
+      />
 
       <Routes>
         {/* Auth Routes */}
@@ -47,6 +70,9 @@ function App() {
         {/* Forgot Password Flow */}
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/forgot-password/verify" element={<VerifyResetCode />} />
+
+        {/* Accept Invitation Route */}
+        <Route path="/invitations/:invitationId/accept/:code" element={<AcceptInvitation />} />
 
         {/* Onboarding Route - Protected */}
         <Route path="/onboarding" element={
@@ -94,6 +120,13 @@ function App() {
         <Route path="/clients/:clientId/financials" element={
           <ProtectedRoute>
             <Financials />
+          </ProtectedRoute>
+        } />
+
+        {/* Financial Reports Route - Protected */}
+        <Route path="/clients/:clientId/financials/reports" element={
+          <ProtectedRoute>
+            <FinancialReports />
           </ProtectedRoute>
         } />
 

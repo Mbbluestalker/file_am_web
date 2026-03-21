@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { searchBusinesses, sendBusinessInvitation } from '../../services/onboardingApi';
+import { searchBusinesses, sendBusinessInvitation, requestClientManagementAccess } from '../../services/onboardingApi';
 
 /**
  * ADD BUSINESS OWNER MODAL
@@ -49,6 +49,7 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
         const business = response.data[0];
         setSearchResults({
           id: business.id,
+          userId: business.userId,
           name: business.name,
           rcNumber: business.rcNumber || 'N/A',
           email: business.email,
@@ -74,20 +75,8 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
     setSearchError(null);
 
     try {
-      // Prepare invitation data with companyId for existing business
-      const invitationData = {
-        companyId: searchResults.id,
-        invitedEmail: searchResults.email,
-        invitedBusinessName: searchResults.name,
-        invitedContactName: searchResults.ownerName,
-        invitedRcNumber: searchResults.rcNumber !== 'N/A' ? searchResults.rcNumber : undefined,
-        invitedPhone: undefined, // Not available from search results
-        stateOfOperation: searchResults.state,
-        taxTypesManaged: [], // Will need to be filled by the business owner
-        expiresInHours: 168, // 7 days default
-      };
-
-      const response = await sendBusinessInvitation(invitationData);
+      // Use the new client-requests endpoint with userId
+      const response = await requestClientManagementAccess(searchResults.userId);
 
       if (response.status) {
         setShowSuccess(true);

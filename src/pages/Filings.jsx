@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { Calendar } from 'lucide-react';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/client/Sidebar';
-import { clients } from '../data/clientsData';
+import { getAllClientsFromStorage } from '../utils/clientStorage';
 
 const Filings = () => {
   const navigate = useNavigate();
   const [currentMonth, setCurrentMonth] = useState(new Date(2026, 1)); // February 2026
 
   // Use first client as default for sidebar navigation
+  const clients = getAllClientsFromStorage();
   const defaultClientId = clients[0]?.id || '1';
 
   // Mock data for filings
