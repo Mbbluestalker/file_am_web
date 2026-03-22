@@ -3,8 +3,7 @@ import { useState, useEffect } from 'react';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/client/Sidebar';
 import UploadInvoiceModal from '../components/modals/UploadInvoiceModal';
-import ProcessingDocumentModal from '../components/modals/ProcessingDocumentModal';
-import { getInvoices, getFinancialSummary } from '../services/financialsApi';
+import { getInvoices } from '../services/financialsApi';
 
 /**
  * FINANCIALS PAGE
@@ -17,8 +16,6 @@ const Financials = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [showProcessingModal, setShowProcessingModal] = useState(false);
-  const [uploadedFileName, setUploadedFileName] = useState('');
   const [invoices, setInvoices] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -28,7 +25,6 @@ const Financials = () => {
     total: 0,
     totalPages: 0,
   });
-  const [financialSummary, setFinancialSummary] = useState(null);
 
   // Get client from localStorage for header
   const getClientFromStorage = () => {
@@ -53,13 +49,8 @@ const Financials = () => {
         setIsLoading(true);
         setError(null);
 
-        // Fetch both invoices and financial summary in parallel
-        const [invoicesResponse, summaryResponse] = await Promise.all([
+        const [invoicesResponse] = await Promise.all([
           getInvoices(clientId, pagination.page, pagination.limit),
-          getFinancialSummary(clientId).catch(err => {
-            console.error('Error fetching financial summary:', err);
-            return null; // Continue even if summary fails
-          })
         ]);
 
         // Handle invoices response
@@ -95,10 +86,6 @@ const Financials = () => {
           setError('Failed to load invoices');
         }
 
-        // Handle financial summary response
-        if (summaryResponse && summaryResponse.status && summaryResponse.data) {
-          setFinancialSummary(summaryResponse.data);
-        }
       } catch (err) {
         console.error('Error fetching financial data:', err);
         setError(err.message || 'Failed to load financial data');
@@ -216,18 +203,12 @@ const Financials = () => {
     return null;
   };
 
-  // Handle upload
-  const handleUploadComplete = (file) => {
-    setUploadedFileName(file.name);
+  // Handle upload complete → navigate to processing page
+  const handleUploadComplete = (file, documentId) => {
     setShowUploadModal(false);
-    setShowProcessingModal(true);
-  };
-
-  // Handle processing complete
-  const handleProcessingComplete = () => {
-    setShowProcessingModal(false);
-    // Navigate to review page
-    navigate(`/clients/${clientId}/financials/review/INV-2026-002`);
+    navigate(`/clients/${clientId}/financials/processing`, {
+      state: { documentId, fileName: file.name },
+    });
   };
 
   // Handle invoice click
@@ -281,36 +262,6 @@ const Financials = () => {
               </button>
             </div>
           </div>
-
-          {/* Financial Summary Cards */}
-          {financialSummary && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-8">
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <div className="text-xs font-medium text-gray-500 uppercase mb-2">Total Income</div>
-                <div className="text-3xl font-bold text-green-600">
-                  ₦{(financialSummary.totalIncome || 0).toLocaleString()}
-                </div>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <div className="text-xs font-medium text-gray-500 uppercase mb-2">Total Expenses</div>
-                <div className="text-3xl font-bold text-red-600">
-                  ₦{(financialSummary.totalExpenses || 0).toLocaleString()}
-                </div>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <div className="text-xs font-medium text-gray-500 uppercase mb-2">Net Profit</div>
-                <div className="text-3xl font-bold text-gray-900">
-                  ₦{(financialSummary.netProfit || 0).toLocaleString()}
-                </div>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <div className="text-xs font-medium text-gray-500 uppercase mb-2">Top Vendor</div>
-                <div className="text-lg font-bold text-gray-900 truncate">
-                  {financialSummary.topVendor || 'N/A'}
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Document Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-8">
@@ -439,16 +390,11 @@ const Financials = () => {
         </main>
       </div>
 
-      {/* Modals */}
+      {/* Upload Modal */}
       <UploadInvoiceModal
         isOpen={showUploadModal}
         onClose={() => setShowUploadModal(false)}
         onUploadComplete={handleUploadComplete}
-      />
-      <ProcessingDocumentModal
-        isOpen={showProcessingModal}
-        fileName={uploadedFileName}
-        onComplete={handleProcessingComplete}
       />
     </div>
   );

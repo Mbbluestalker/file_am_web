@@ -61,8 +61,8 @@ const UploadInvoiceModal = ({ isOpen, onClose, onUploadComplete }) => {
       if (response.status) {
         toast.success('Invoice uploaded successfully!');
 
-        // Trigger processing modal with file info
-        onUploadComplete(selectedFile);
+        const documentId = response.data?.fileId || response.data?.id || null;
+        onUploadComplete(selectedFile, documentId);
 
         // Reset state
         setSelectedFile(null);

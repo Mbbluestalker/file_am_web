@@ -23,6 +23,16 @@ const BusinessProfile = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [businessTypes, setBusinessTypes] = useState([]);
   const [industries, setIndustries] = useState([]);
+  const [activeTab, setActiveTab] = useState('identity'); // identity, contact, tax
+
+  // Tax configuration state
+  const [taxConfig, setTaxConfig] = useState({
+    vat: false,
+    paye: false,
+    wht: false,
+    cit: false,
+    stampDuties: false,
+  });
 
   // Form state
   const [formData, setFormData] = useState({
@@ -42,6 +52,8 @@ const BusinessProfile = () => {
     monthlyPayment: '',
     nextRenewalDate: '',
     compliancePercent: 0,
+    stateOfOperation: '',
+    city: '',
   });
 
   // Fetch business types and industries on mount
@@ -86,11 +98,13 @@ const BusinessProfile = () => {
             rcNumber: profile.tin || '',
             industry: profile.industry || '',
             turnoverBand: determineTurnoverBand(profile.monthlyPayment),
-            vatStatus: 'N/A', // API doesn't provide this in business profile
+            vatStatus: profile.vatStatus || 'Required', // API doesn't provide this in business profile
             businessType: profile.businessType || '',
             registrationDate: profile.registrationDate ? profile.registrationDate.split('T')[0] : '',
             tin: profile.tin || '',
             businessAddress: profile.businessAddress || '',
+            stateOfOperation: profile.stateOfOperation || profile.state || '',
+            city: profile.city || '',
             phoneNumber: profile.phoneNumber || '',
             emailAddress: profile.emailAddress || '',
             website: profile.website || '',
@@ -99,6 +113,17 @@ const BusinessProfile = () => {
             nextRenewalDate: profile.nextRenewalDate ? new Date(profile.nextRenewalDate).toLocaleDateString() : '',
             compliancePercent: profile.compliancePercent || 0,
           });
+
+          // Update tax configuration if available
+          if (profile.taxConfiguration) {
+            setTaxConfig({
+              vat: profile.taxConfiguration.vat || false,
+              paye: profile.taxConfiguration.paye || false,
+              wht: profile.taxConfiguration.wht || false,
+              cit: profile.taxConfiguration.cit || false,
+              stampDuties: profile.taxConfiguration.stampDuties || false,
+            });
+          }
         } else {
           setError('Failed to load business profile');
         }
@@ -209,10 +234,13 @@ const BusinessProfile = () => {
         registrationDate: formData.registrationDate,
         tin: formData.tin,
         businessAddress: formData.businessAddress,
+        stateOfOperation: formData.stateOfOperation,
+        city: formData.city,
         phoneNumber: formData.phoneNumber,
         emailAddress: formData.emailAddress,
         website: formData.website,
         logo: businessProfile?.logo || '', // Keep existing logo or empty
+        taxConfiguration: taxConfig, // Include tax configuration
       };
 
       // Filter out empty values - only send non-empty fields
@@ -259,137 +287,245 @@ const BusinessProfile = () => {
           />
 
           {/* Alert Banner */}
-          <div className="!mb-8">
+          <div className="mb-6">
             <AlertBanner
-              message="This business crossed the turnover threshold for VAT Registration"
+              message="This business crossed the turnover threshold for VAT requirement"
               type="warning"
             />
           </div>
 
-          {/* Form Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 !gap-6 !mb-8">
-            {/* Business Name */}
-            <TextInput
-              label="Business Name"
-              value={formData.businessName}
-              onChange={handleInputChange('businessName')}
-              placeholder="Enter business name"
-            />
-
-            {/* Business Type */}
-            <Dropdown
-              label="Business Type"
-              value={formData.businessType}
-              onChange={handleInputChange('businessType')}
-              options={businessTypes.map(type => ({ value: type, label: type }))}
-            />
-
-            {/* RC Number / TIN */}
-            <TextInput
-              label="TIN"
-              value={formData.tin}
-              onChange={handleInputChange('tin')}
-              placeholder="Enter TIN"
-            />
-
-            {/* Industry */}
-            <Dropdown
-              label="Industry"
-              value={formData.industry}
-              onChange={handleInputChange('industry')}
-              options={industries.map(industry => ({ value: industry, label: industry }))}
-            />
-
-            {/* Registration Date */}
-            <TextInput
-              label="Registration Date"
-              value={formData.registrationDate}
-              onChange={handleInputChange('registrationDate')}
-              placeholder="YYYY-MM-DD"
-              type="date"
-            />
-
-            {/* Turnover Band */}
-            <Dropdown
-              label="Turnover Band"
-              value={formData.turnoverBand}
-              onChange={handleInputChange('turnoverBand')}
-              options={turnoverOptions}
-            />
-
-            {/* Business Address */}
-            <TextInput
-              label="Business Address"
-              value={formData.businessAddress}
-              onChange={handleInputChange('businessAddress')}
-              placeholder="Enter business address"
-            />
-
-            {/* Phone Number */}
-            <TextInput
-              label="Phone Number"
-              value={formData.phoneNumber}
-              onChange={handleInputChange('phoneNumber')}
-              placeholder="Enter phone number"
-            />
-
-            {/* Email Address */}
-            <TextInput
-              label="Email Address"
-              value={formData.emailAddress}
-              onChange={handleInputChange('emailAddress')}
-              placeholder="Enter email address"
-              type="email"
-            />
-
-            {/* Website */}
-            <TextInput
-              label="Website"
-              value={formData.website}
-              onChange={handleInputChange('website')}
-              placeholder="Enter website URL"
-            />
-
-            {/* VAT Status */}
-            <TextInput
-              label="VAT Status"
-              value={formData.vatStatus}
-              onChange={handleInputChange('vatStatus')}
-              placeholder="Enter VAT status"
-              disabled={true}
-            />
+          {/* Tabs */}
+          <div className="border-b border-gray-200 mb-6">
+            <div className="flex gap-8">
+              <button
+                onClick={() => setActiveTab('identity')}
+                className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'identity'
+                    ? 'border-brand text-gray-900'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Business Identity
+              </button>
+              <button
+                onClick={() => setActiveTab('contact')}
+                className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'contact'
+                    ? 'border-brand text-gray-900'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Contact Information
+              </button>
+              <button
+                onClick={() => setActiveTab('tax')}
+                className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'tax'
+                    ? 'border-brand text-gray-900'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Tax Configuration
+              </button>
+            </div>
           </div>
 
-          {/* Save Button */}
-          <div className="!mb-8">
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="flex items-center !gap-2 bg-teal-600 hover:bg-teal-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white !px-6 !py-3 rounded-lg font-medium transition-colors"
-            >
-              {isSaving ? (
-                <>
-                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                  </svg>
-                  Save Changes
-                </>
-              )}
-            </button>
-          </div>
+          {/* Business Identity Tab */}
+          {activeTab === 'identity' && (
+            <>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                {/* Business Name */}
+                <TextInput
+                  label="Business Name"
+                  value={formData.businessName}
+                  onChange={handleInputChange('businessName')}
+                  placeholder="Enter business name"
+                />
 
-          {/* System Evaluation */}
-          <div className="max-w-2xl">
-            <SystemEvaluation evaluations={evaluations} />
-          </div>
+                {/* RC Number / TIN */}
+                <TextInput
+                  label="RC Number / TIN"
+                  value={formData.tin}
+                  onChange={handleInputChange('tin')}
+                  placeholder="Enter TIN"
+                />
+
+                {/* Industry */}
+                <Dropdown
+                  label="Industry"
+                  value={formData.industry}
+                  onChange={handleInputChange('industry')}
+                  options={industries.map(industry => ({ value: industry, label: industry }))}
+                />
+
+                {/* Turnover Band */}
+                <Dropdown
+                  label="Turnover Band"
+                  value={formData.turnoverBand}
+                  onChange={handleInputChange('turnoverBand')}
+                  options={turnoverOptions}
+                />
+
+                {/* VAT Status */}
+                <TextInput
+                  label="VAT Status"
+                  value={formData.vatStatus}
+                  onChange={handleInputChange('vatStatus')}
+                  placeholder="Required"
+                  disabled={true}
+                />
+              </div>
+
+              {/* System Evaluation - Only on Business Identity tab */}
+              <div className="max-w-2xl">
+                <SystemEvaluation evaluations={evaluations} />
+              </div>
+            </>
+          )}
+
+          {/* Contact Information Tab */}
+          {activeTab === 'contact' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              {/* Registered Address */}
+              <TextInput
+                label="Registered Address"
+                value={formData.businessAddress}
+                onChange={handleInputChange('businessAddress')}
+                placeholder="Enter registered address"
+              />
+
+              {/* State of Operation */}
+              <TextInput
+                label="State of Operation"
+                value={formData.stateOfOperation}
+                onChange={handleInputChange('stateOfOperation')}
+                placeholder="Enter state"
+              />
+
+              {/* City */}
+              <TextInput
+                label="City"
+                value={formData.city}
+                onChange={handleInputChange('city')}
+                placeholder="Enter city"
+              />
+
+              {/* Email */}
+              <TextInput
+                label="Email"
+                value={formData.emailAddress}
+                onChange={handleInputChange('emailAddress')}
+                placeholder="Enter email address"
+                type="email"
+              />
+
+              {/* Phone Number */}
+              <TextInput
+                label="Phone Number"
+                value={formData.phoneNumber}
+                onChange={handleInputChange('phoneNumber')}
+                placeholder="Enter phone number"
+              />
+
+              {/* Website */}
+              <TextInput
+                label="Website"
+                value={formData.website}
+                onChange={handleInputChange('website')}
+                placeholder="Enter website URL"
+              />
+            </div>
+          )}
+
+          {/* Tax Configuration Tab */}
+          {activeTab === 'tax' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              {/* VAT */}
+              <div className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="vat"
+                  checked={taxConfig.vat}
+                  onChange={(e) => setTaxConfig({...taxConfig, vat: e.target.checked})}
+                  className="w-4 h-4 rounded accent-brand focus:ring-2 focus:ring-brand mt-1"
+                />
+                <div className="flex-1">
+                  <label htmlFor="vat" className="block text-sm font-medium text-gray-900">
+                    Value Added Tax (VAT)
+                  </label>
+                  <p className="text-xs text-gray-500 mt-0.5">7.5% on taxable supplies</p>
+                </div>
+              </div>
+
+              {/* PAYE */}
+              <div className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="paye"
+                  checked={taxConfig.paye}
+                  onChange={(e) => setTaxConfig({...taxConfig, paye: e.target.checked})}
+                  className="w-4 h-4 rounded accent-brand focus:ring-2 focus:ring-brand mt-1"
+                />
+                <div className="flex-1">
+                  <label htmlFor="paye" className="block text-sm font-medium text-gray-900">
+                    Pay As You Earn (PAYE)
+                  </label>
+                  <p className="text-xs text-gray-500 mt-0.5">Employee income tax withholding</p>
+                </div>
+              </div>
+
+              {/* WHT */}
+              <div className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="wht"
+                  checked={taxConfig.wht}
+                  onChange={(e) => setTaxConfig({...taxConfig, wht: e.target.checked})}
+                  className="w-4 h-4 rounded accent-brand focus:ring-2 focus:ring-brand mt-1"
+                />
+                <div className="flex-1">
+                  <label htmlFor="wht" className="block text-sm font-medium text-gray-900">
+                    Withholding Tax (WHT)
+                  </label>
+                  <p className="text-xs text-gray-500 mt-0.5">Tax withheld at source</p>
+                </div>
+              </div>
+
+              {/* CIT */}
+              <div className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="cit"
+                  checked={taxConfig.cit}
+                  onChange={(e) => setTaxConfig({...taxConfig, cit: e.target.checked})}
+                  className="w-4 h-4 rounded accent-brand focus:ring-2 focus:ring-brand mt-1"
+                />
+                <div className="flex-1">
+                  <label htmlFor="cit" className="block text-sm font-medium text-gray-900">
+                    Companies Income Tax (CIT)
+                  </label>
+                  <p className="text-xs text-gray-500 mt-0.5">30% on assessable profits</p>
+                </div>
+              </div>
+
+              {/* Stamp Duties */}
+              <div className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="stampDuties"
+                  checked={taxConfig.stampDuties}
+                  onChange={(e) => setTaxConfig({...taxConfig, stampDuties: e.target.checked})}
+                  className="w-4 h-4 rounded accent-brand focus:ring-2 focus:ring-brand mt-1"
+                />
+                <div className="flex-1">
+                  <label htmlFor="stampDuties" className="block text-sm font-medium text-gray-900">
+                    Stamp Duties
+                  </label>
+                  <p className="text-xs text-gray-500 mt-0.5">Tax on instruments</p>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>

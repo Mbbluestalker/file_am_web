@@ -7,6 +7,7 @@ import BusinessProfile from './pages/BusinessProfile';
 import TaxComputation from './pages/TaxComputation';
 import Financials from './pages/Financials';
 import FinancialReports from './pages/FinancialReports';
+import ProcessingDocument from './pages/ProcessingDocument';
 import ReviewInvoice from './pages/ReviewInvoice';
 import Filings from './pages/Filings';
 import FilingDetail from './pages/FilingDetail';
@@ -128,6 +129,13 @@ function App() {
         <Route path="/clients/:clientId/financials/reports" element={
           <ProtectedRoute>
             <FinancialReports />
+          </ProtectedRoute>
+        } />
+
+        {/* Processing Document Route - Protected */}
+        <Route path="/clients/:clientId/financials/processing" element={
+          <ProtectedRoute>
+            <ProcessingDocument />
           </ProtectedRoute>
         } />
 

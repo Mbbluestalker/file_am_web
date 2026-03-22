@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar } from 'lucide-react';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/client/Sidebar';
 import { getAllClientsFromStorage } from '../utils/clientStorage';
@@ -10,430 +9,301 @@ const Filings = () => {
   const navigate = useNavigate();
   const [currentMonth, setCurrentMonth] = useState(new Date(2026, 1)); // February 2026
   const [filings, setFilings] = useState([]);
-  const [summary, setSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
 
-  // Use first client as default for sidebar navigation
   const clients = getAllClientsFromStorage();
   const defaultClientId = clients[0]?.id || '1';
 
-  // Fetch filings data from API
   useEffect(() => {
     const fetchFilings = async () => {
       if (!defaultClientId) return;
-
       try {
         setIsLoading(true);
-        setError(null);
-
-        // Fetch filings and summary in parallel
-        const [filingsResponse, summaryResponse] = await Promise.all([
+        const [filingsResponse] = await Promise.all([
           getFilings(defaultClientId, 1, 50),
-          getFilingsSummary(defaultClientId)
+          getFilingsSummary(defaultClientId).catch(() => null),
         ]);
-
-        if (filingsResponse.status && filingsResponse.data) {
-          // Handle both paginated and non-paginated responses
-          const filingsList = filingsResponse.data.data || filingsResponse.data.filings || filingsResponse.data;
-          setFilings(Array.isArray(filingsList) ? filingsList : []);
-        }
-
-        if (summaryResponse.status && summaryResponse.data) {
-          setSummary(summaryResponse.data);
+        if (filingsResponse?.status && filingsResponse.data) {
+          const list = filingsResponse.data.data || filingsResponse.data.filings || filingsResponse.data;
+          setFilings(Array.isArray(list) ? list : []);
         }
       } catch (err) {
         console.error('Filings fetch error:', err);
-        setError(err.message || 'Failed to load filings');
       } finally {
         setIsLoading(false);
       }
     };
-
     fetchFilings();
   }, [defaultClientId]);
 
-  // Fallback mock data for filings
   const fallbackFilings = [
-    {
-      id: 1,
-      title: 'VAT Return - February 2026',
-      dueDate: '21 March 2026',
-      lastUpdated: '2026-03-19 14:30',
-      status: 'ready',
-      readiness: 98,
-      riskLevel: 'low',
-    },
-    {
-      id: 2,
-      title: 'VAT Return - January 2026',
-      dueDate: '21 February 2026',
-      lastUpdated: '2026-02-15 09:22',
-      status: 'in-progress',
-      readiness: 67,
-      riskLevel: 'medium',
-    },
-    {
-      id: 3,
-      title: 'VAT Return - December 2025',
-      dueDate: '21 January 2026',
-      lastUpdated: '2026-01-20 16:45',
-      status: 'submitted',
-      readiness: 100,
-      riskLevel: null,
-    },
-    {
-      id: 4,
-      title: 'WHT Return - February 2026',
-      dueDate: '21 March 2026',
-      lastUpdated: '2026-03-18 11:15',
-      status: 'ready',
-      readiness: 95,
-      riskLevel: 'low',
-    },
+    { id: 1, taxType: 'VAT', period: 'January 2026', dueDate: '21 Feb 2026', daysRemaining: 10, status: 'ready', readiness: 98, riskLevel: 'low', lastUpdated: '2026-02-11 14:30', updatedBy: 'System' },
+    { id: 2, taxType: 'VAT', period: 'February 2026', dueDate: '21 Mar 2026', daysRemaining: 38, status: 'in-progress', readiness: 67, riskLevel: 'medium', lastUpdated: '2026-02-11 09:15', updatedBy: 'John Okeke' },
+    { id: 3, taxType: 'VAT', period: 'December 2025', dueDate: '21 Jan 2026', daysRemaining: null, status: 'submitted', readiness: 100, riskLevel: 'low', lastUpdated: '2026-01-20 16:45', updatedBy: 'System' },
   ];
 
-  // Calendar helper functions
+  const mapApiFilings = (list) =>
+    list.map((f) => {
+      const status = f.status === 'submitted' || f.status === 'paid' ? 'submitted' : f.status === 'overdue' ? 'in-progress' : 'ready';
+      const due = f.dueDate ? new Date(f.dueDate) : null;
+      const days = due ? Math.ceil((due - new Date()) / 86400000) : null;
+      return {
+        id: f.id,
+        taxType: f.taxType || 'VAT',
+        period: f.periodLabel || f.period || '',
+        dueDate: due ? due.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
+        daysRemaining: days && days > 0 ? days : null,
+        status,
+        readiness: status === 'submitted' ? 100 : status === 'in-progress' ? 67 : 95,
+        riskLevel: status === 'in-progress' ? 'medium' : 'low',
+        lastUpdated: f.updatedAt ? new Date(f.updatedAt).toLocaleString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', '') : '—',
+        updatedBy: f.updatedBy || 'System',
+      };
+    });
+
+  const displayFilings = filings.length > 0 ? mapApiFilings(filings) : fallbackFilings;
+
+  // Calendar
   const getDaysInMonth = (date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
-    return { daysInMonth, startingDayOfWeek };
-  };
-
-  const getStatusBadge = (status, readiness, riskLevel) => {
-    if (status === 'submitted') {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-          Submitted
-        </span>
-      );
-    }
-    if (status === 'ready') {
-      return (
-        <>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-            Ready to File
-          </span>
-          {riskLevel === 'low' && (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-              Low Risk
-            </span>
-          )}
-        </>
-      );
-    }
-    if (status === 'in-progress') {
-      return (
-        <>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-            In Progress
-          </span>
-          {riskLevel === 'medium' && (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200">
-              Medium Risk
-            </span>
-          )}
-        </>
-      );
-    }
-  };
-
-  const getProgressColor = (readiness) => {
-    if (readiness >= 90) return 'bg-green-500';
-    if (readiness >= 70) return 'bg-blue-500';
-    if (readiness >= 50) return 'bg-yellow-500';
-    return 'bg-orange-500';
-  };
-
-  // Helper function to format date
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-  };
-
-  // Helper function to format currency
-  const formatCurrency = (amount) => {
-    if (!amount && amount !== 0) return '₦0';
-    return `₦${Math.round(amount).toLocaleString()}`;
-  };
-
-  // Map API status to UI status
-  const mapStatus = (apiStatus) => {
-    if (apiStatus === 'submitted' || apiStatus === 'paid') return 'submitted';
-    if (apiStatus === 'overdue') return 'in-progress'; // Show overdue as in-progress with medium risk
-    if (apiStatus === 'pending') return 'ready'; // Show pending as ready to file
-    return 'in-progress';
-  };
-
-  // Determine risk level based on status and due date
-  const getRiskLevel = (status, dueDate) => {
-    if (status === 'overdue') return 'medium';
-    if (status === 'pending') {
-      const due = new Date(dueDate);
-      const today = new Date();
-      const daysUntilDue = Math.ceil((due - today) / (1000 * 60 * 60 * 24));
-      if (daysUntilDue <= 7) return 'medium';
-      return 'low';
-    }
-    return null;
-  };
-
-  // Calculate readiness based on status
-  const getReadiness = (status) => {
-    if (status === 'submitted' || status === 'paid') return 100;
-    if (status === 'overdue') return 67;
-    if (status === 'pending') return 95;
-    return 50;
+    const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+    const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+    return { daysInMonth: lastDay.getDate(), startingDayOfWeek: firstDay.getDay() };
   };
 
   const { daysInMonth, startingDayOfWeek } = getDaysInMonth(currentMonth);
   const monthName = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
 
-  // Mark specific dates
-  const markedDates = {
-    2: 'submitted', // green
-    15: 'overdue', // red
-    21: 'in-progress', // blue
-    28: 'today', // orange
+  // Hardcoded marked dates for demo (Feb 2026)
+  const markedDates = { 11: 'today', 21: 'submitted' };
+
+  const navigateMonth = (dir) =>
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + dir));
+
+  const getStatusBadges = (filing) => {
+    const badges = [];
+    if (filing.status === 'submitted') {
+      badges.push(
+        <span key="s" className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+          Submitted
+        </span>
+      );
+    } else if (filing.status === 'ready') {
+      badges.push(
+        <span key="r" className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />
+          Ready to File
+        </span>
+      );
+    } else {
+      badges.push(
+        <span key="ip" className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+          In Progress
+        </span>
+      );
+    }
+    if (filing.riskLevel === 'low') {
+      badges.push(
+        <span key="lr" className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-white text-green-700 border border-green-300">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+          Low Risk
+        </span>
+      );
+    } else if (filing.riskLevel === 'medium') {
+      badges.push(
+        <span key="mr" className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200">
+          <span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" />
+          Medium Risk
+        </span>
+      );
+    }
+    return badges;
   };
 
-  const navigateMonth = (direction) => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + direction));
+  const getReadinessColor = (r) => {
+    if (r >= 90) return 'bg-green-500';
+    if (r >= 60) return 'bg-orange-400';
+    return 'bg-red-400';
   };
-
-  // Transform API data to UI format
-  const displayFilings = filings.length > 0
-    ? filings.map(filing => {
-        const uiStatus = mapStatus(filing.status);
-        const riskLevel = getRiskLevel(filing.status, filing.dueDate);
-        const readiness = getReadiness(filing.status);
-
-        return {
-          id: filing.id,
-          title: `${filing.taxType} Return - ${filing.periodLabel}`,
-          dueDate: filing.dueDate,
-          lastUpdated: filing.updatedAt || filing.createdAt || new Date().toISOString(),
-          status: uiStatus,
-          readiness: readiness,
-          riskLevel: riskLevel,
-          amount: filing.amount,
-          taxType: filing.taxType,
-          periodLabel: filing.periodLabel,
-        };
-      })
-    : fallbackFilings;
 
   return (
     <div className="h-screen bg-white flex overflow-hidden">
-      {/* Sidebar */}
       <Sidebar clientId={defaultClientId} />
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
         <Header hideLogo={true} />
 
-        {/* Page Content */}
         <main className="flex-1 bg-gray-50 overflow-y-auto">
           <div className="px-10 py-8">
-            {/* Page Header */}
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Filings</h1>
+              <h1 className="text-3xl font-bold text-gray-900 mb-1">Filings</h1>
               <p className="text-sm text-gray-500">
                 Manage VAT filings, track compliance deadlines, and monitor submission status
               </p>
             </div>
 
-            {/* Loading State */}
-            {isLoading && (
+            {isLoading ? (
               <div className="flex items-center justify-center py-20">
-                <div className="text-center">
-                  <svg className="animate-spin h-12 w-12 text-teal-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <p className="text-gray-600">Loading filings...</p>
-                </div>
+                <svg className="animate-spin h-10 w-10 text-teal-600" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
               </div>
-            )}
-
-            {/* Error State */}
-            {error && !isLoading && (
-              <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                <div className="flex items-center gap-3">
-                  <svg className="w-5 h-5 text-yellow-600 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
-                  </svg>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-yellow-900">Unable to load filings data</p>
-                    <p className="text-xs text-yellow-700 mt-1">{error}</p>
-                  </div>
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="text-xs font-medium text-yellow-700 hover:text-yellow-800 underline"
-                  >
-                    Retry
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {!isLoading && (
-              <>
-
-            {/* Main Content Area */}
-            <div className="flex gap-6">
-              {/* Calendar Section */}
-              <div className="flex-1">
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">{monthName}</h2>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => navigateMonth(-1)}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => navigateMonth(1)}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-
-            {/* Calendar Grid */}
-            <div className="grid grid-cols-7 gap-2">
-              {/* Day headers */}
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                <div key={day} className="text-center text-sm font-medium text-gray-500 py-2">
-                  {day}
-                </div>
-              ))}
-
-              {/* Empty cells for days before month starts */}
-              {Array.from({ length: startingDayOfWeek }).map((_, index) => (
-                <div key={`empty-${index}`} className="aspect-square" />
-              ))}
-
-              {/* Calendar days */}
-              {Array.from({ length: daysInMonth }).map((_, index) => {
-                const day = index + 1;
-                const status = markedDates[day];
-                let dayClass = 'aspect-square flex items-center justify-center rounded-lg text-sm border border-gray-200 hover:border-gray-300 cursor-pointer';
-
-                if (status === 'submitted') {
-                  dayClass += ' bg-green-50 border-green-200 text-green-700 font-medium';
-                } else if (status === 'overdue') {
-                  dayClass += ' bg-red-50 border-red-200 text-red-700 font-medium';
-                } else if (status === 'in-progress') {
-                  dayClass += ' bg-blue-50 border-blue-200 text-blue-700 font-medium';
-                } else if (status === 'today') {
-                  dayClass += ' bg-orange-50 border-orange-300 text-orange-700 font-semibold ring-2 ring-orange-200';
-                }
-
-                return (
-                  <div key={day} className={dayClass}>
-                    {day}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Legend */}
-            <div className="flex flex-wrap gap-4 mt-6 pt-6 border-t border-gray-200">
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-green-200 border border-green-300" />
-                <span className="text-sm text-gray-600">Submitted</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-red-200 border border-red-300" />
-                <span className="text-sm text-gray-600">Overdue</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-blue-200 border border-blue-300" />
-                <span className="text-sm text-gray-600">In Progress</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-orange-200 border border-orange-300 ring-2 ring-orange-100" />
-                <span className="text-sm text-gray-600">Today</span>
-              </div>
-            </div>
-              </div>
-              </div>
-
-              {/* Filings List Section */}
-              <div className="w-96 bg-white rounded-lg shadow-sm overflow-hidden">
-                <div className="p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">All Filings</h2>
-
-            <div className="space-y-4">
-              {displayFilings.map((filing) => (
-                <div
-                  key={filing.id}
-                  onClick={() => navigate(`/filings/${filing.id}`)}
-                  className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 hover:shadow-sm transition-all cursor-pointer"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <h3 className="font-medium text-gray-900 text-sm">{filing.title || filing.filingName || 'Untitled Filing'}</h3>
-                    {filing.status === 'submitted' && (
-                      <Calendar className="w-4 h-4 text-green-600" />
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {getStatusBadge(filing.status, filing.readiness, filing.riskLevel)}
-                  </div>
-
-                  {filing.status !== 'submitted' && (
-                    <>
-                      <div className="mb-2">
-                        <div className="flex justify-between text-xs text-gray-500 mb-1">
-                          <span>Readiness</span>
-                          <span className="font-medium text-gray-700">{filing.readiness || 0}%</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full transition-all ${getProgressColor(filing.readiness || 0)}`}
-                            style={{ width: `${filing.readiness || 0}%` }}
-                          />
-                        </div>
+            ) : (
+              <div className="flex gap-6">
+                {/* Calendar */}
+                <div className="flex-1">
+                  <div className="bg-white rounded-xl overflow-hidden shadow-sm">
+                    {/* Calendar Header */}
+                    <div className="flex items-center justify-between px-6 py-5">
+                      <h2 className="text-lg font-semibold text-gray-900">{monthName}</h2>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => navigateMonth(-1)}
+                          className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-200 hover:bg-gray-50 transition-colors"
+                        >
+                          <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => navigateMonth(1)}
+                          className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-200 hover:bg-gray-50 transition-colors"
+                        >
+                          <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
                       </div>
-                    </>
-                  )}
-
-                  <div className="text-xs text-gray-500 space-y-1">
-                    <div className="flex justify-between">
-                      <span>Due Date</span>
-                      <span className="font-medium text-gray-700">{formatDate(filing.dueDate)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Last Updated</span>
-                      <span className="text-gray-600">{formatDate(filing.lastUpdated || filing.updatedAt)}</span>
+
+                    {/* Day Headers */}
+                    <div className="grid grid-cols-7 px-6 mb-2">
+                      {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((d) => (
+                        <div key={d} className="text-center text-xs font-semibold text-gray-400 py-2">
+                          {d}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Calendar Days */}
+                    <div className="grid grid-cols-7 px-6 pb-4">
+                      {Array.from({ length: startingDayOfWeek }).map((_, i) => (
+                        <div key={`e-${i}`} />
+                      ))}
+                      {Array.from({ length: daysInMonth }).map((_, i) => {
+                        const day = i + 1;
+                        const mark = markedDates[day];
+                        const isToday = mark === 'today';
+                        const hasSubmitted = mark === 'submitted';
+
+                        return (
+                          <div key={day} className="flex flex-col items-center py-1">
+                            <div
+                              className={`w-10 h-10 flex items-center justify-center rounded-lg text-sm transition-colors cursor-pointer
+                                ${isToday ? 'border-2 border-orange-400 text-orange-600 font-semibold' : 'border border-gray-100 text-gray-700 hover:bg-gray-50'}
+                              `}
+                            >
+                              {day}
+                            </div>
+                            {hasSubmitted && (
+                              <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-0.5" />
+                            )}
+                            {!hasSubmitted && <div className="h-2" />}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Legend — black bar */}
+                    <div className="bg-gray-900 px-6 py-4 flex items-center gap-8">
+                      {[
+                        { color: 'bg-green-500', label: 'Submitted' },
+                        { color: 'bg-red-500', label: 'Overdue' },
+                        { color: 'bg-blue-500', label: 'In Progress' },
+                        { color: 'bg-orange-400', label: 'Today' },
+                      ].map(({ color, label }) => (
+                        <div key={label} className="flex items-center gap-2">
+                          <div className={`w-2.5 h-2.5 rounded-full ${color}`} />
+                          <span className="text-xs text-gray-300">{label}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
-              ))}
 
-              {displayFilings.length === 0 && (
-                <div className="py-12 text-center">
-                  <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500">No filings found</p>
-                </div>
-              )}
-                </div>
+                {/* Filings List */}
+                <div className="w-96">
+                  <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div className="px-6 py-5 border-b border-gray-100">
+                      <h2 className="text-base font-semibold text-gray-900">All Filings</h2>
+                    </div>
+
+                    <div className="divide-y divide-gray-100">
+                      {displayFilings.map((filing) => (
+                        <div
+                          key={filing.id}
+                          onClick={() => navigate(`/filings/${filing.id}`)}
+                          className="px-6 py-5 hover:bg-gray-50 cursor-pointer transition-colors"
+                        >
+                          {/* Title row */}
+                          <div className="flex items-start justify-between mb-1">
+                            <div>
+                              <p className="font-semibold text-gray-900 text-sm">{filing.taxType} Return</p>
+                              <p className="text-xs text-gray-400 mt-0.5">Period: {filing.period}</p>
+                            </div>
+                            <svg className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
+
+                          {/* Badges */}
+                          <div className="flex flex-wrap gap-1.5 my-2.5">
+                            {getStatusBadges(filing)}
+                          </div>
+
+                          {/* Due Date + Readiness */}
+                          <div className="flex items-start justify-between gap-4 mb-2">
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Due Date</p>
+                              <p className="text-xs font-semibold text-gray-800">
+                                {filing.dueDate}
+                                {filing.daysRemaining != null && (
+                                  <span className="font-normal text-gray-400 ml-1">({filing.daysRemaining} days)</span>
+                                )}
+                              </p>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-0.5">
+                                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Readiness</p>
+                                <p className="text-xs font-semibold text-gray-800">{filing.readiness}%</p>
+                              </div>
+                              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${getReadinessColor(filing.readiness)}`}
+                                  style={{ width: `${filing.readiness}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Last updated */}
+                          <p className="text-[10px] text-gray-400">
+                            Last updated {filing.lastUpdated} by {filing.updatedBy}
+                          </p>
+                        </div>
+                      ))}
+
+                      {displayFilings.length === 0 && (
+                        <div className="px-6 py-12 text-center">
+                          <p className="text-sm text-gray-400">No filings found</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-            </>
             )}
           </div>
         </main>
