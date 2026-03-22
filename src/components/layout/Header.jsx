@@ -19,6 +19,9 @@ const Header = ({ hideLogo = false }) => {
     if (path === '/filings') {
       return location.pathname === path || location.pathname.startsWith('/filings/');
     }
+    if (path === '/reports') {
+      return location.pathname === path;
+    }
     return location.pathname === path;
   };
 
@@ -85,7 +88,17 @@ const Header = ({ hideLogo = false }) => {
             <span className="text-sm font-medium">TaxGPT</span>
           </Link>
 
-          <Link to="/reports" className="flex items-center gap-2 text-gray-400 hover:text-gray-700 transition-colors">
+          <Link
+            to="/reports"
+            className={`flex items-center gap-2 transition-colors relative ${
+              isActive('/reports')
+                ? 'text-brand'
+                : 'text-gray-400 hover:text-gray-700'
+            }`}
+          >
+            {isActive('/reports') && (
+              <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-brand"></div>
+            )}
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
