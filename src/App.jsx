@@ -16,6 +16,8 @@ import PaymentConfirmation from './pages/PaymentConfirmation';
 import EvidenceVault from './pages/EvidenceVault';
 import DocumentDetail from './pages/DocumentDetail';
 import Reports from './pages/Reports';
+import Compliance from './pages/Compliance';
+import TaxGPT from './pages/TaxGPT';
 import Settings from './pages/Settings';
 import ComingSoon from './pages/ComingSoon';
 import Onboarding from './pages/Onboarding';
@@ -201,7 +203,7 @@ function App() {
         {/* Main Navigation Routes - Coming Soon - Protected */}
         <Route path="/taxgpt" element={
           <ProtectedRoute>
-            <ComingSoon />
+            <TaxGPT />
           </ProtectedRoute>
         } />
         <Route path="/reports" element={
@@ -211,7 +213,7 @@ function App() {
         } />
         <Route path="/compliance" element={
           <ProtectedRoute>
-            <ComingSoon />
+            <Compliance />
           </ProtectedRoute>
         } />
         <Route path="/settings" element={

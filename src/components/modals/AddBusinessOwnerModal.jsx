@@ -186,6 +186,7 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
             >
               Search Existing
             </button>
+            {/* Invite New tab — temporarily hidden
             <button
               className={`pb-3 px-1 font-medium transition-colors ${
                 activeTab === 'invite'
@@ -195,6 +196,7 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
             >
               Invite New
             </button>
+            */}
           </div>
 
           {/* Success Content */}
@@ -253,6 +255,7 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
           >
             Search Existing
           </button>
+          {/* Invite New tab — temporarily hidden
           <button
             onClick={() => setActiveTab('invite')}
             className={`pb-3 px-1 font-medium transition-colors ${
@@ -263,6 +266,7 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
           >
             Invite New
           </button>
+          */}
         </div>
 
         {/* Search Existing Tab */}
@@ -430,10 +434,9 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
           </div>
         )}
 
-        {/* Invite New Tab */}
+        {/* Invite New Tab — temporarily commented out
         {activeTab === 'invite' && (
           <form onSubmit={handleInviteSubmit}>
-            {/* Error Message */}
             {inviteError && (
               <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
                 <div className="flex items-start gap-2">
@@ -444,150 +447,10 @@ const AddBusinessOwnerModal = ({ isOpen, onClose }) => {
                 </div>
               </div>
             )}
-
-            <div className="space-y-4">
-              {/* Business Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-1.5">
-                  Business Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.businessName}
-                  onChange={(e) => {
-                    setFormData({ ...formData, businessName: e.target.value });
-                    setInviteError(null);
-                  }}
-                  placeholder="Enter business name"
-                  required
-                  disabled={isSubmittingInvite}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm placeholder:text-gray-400 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                />
-              </div>
-
-              {/* RC Number */}
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-1.5">
-                  RC Number (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={formData.rcNumber}
-                  onChange={(e) => setFormData({ ...formData, rcNumber: e.target.value })}
-                  placeholder="Enter RC number"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm placeholder:text-gray-400"
-                />
-              </div>
-
-              {/* Contact Person Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-1.5">
-                  Contact Person Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.contactName}
-                  onChange={(e) => setFormData({ ...formData, contactName: e.target.value })}
-                  placeholder="Enter contact person name"
-                  required
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm placeholder:text-gray-400"
-                />
-              </div>
-
-              {/* Email Address */}
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-1.5">
-                  Email Address <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="Enter email address"
-                  required
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm placeholder:text-gray-400"
-                />
-              </div>
-
-              {/* Phone Number */}
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-1.5">
-                  Phone Number (Optional)
-                </label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="Enter phone number"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm placeholder:text-gray-400"
-                />
-              </div>
-
-              {/* State of Operation */}
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-1.5">
-                  State of Operation <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.state}
-                  onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                  placeholder="Enter state"
-                  required
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm placeholder:text-gray-400"
-                />
-              </div>
-
-              {/* Tax Types Managed */}
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Tax Types Managed <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  {['VAT', 'PAYE', 'CIT', 'WHT'].map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => handleTaxTypeToggle(type)}
-                      className={`px-4 py-3 rounded-lg border-2 font-medium transition-all ${
-                        formData.taxTypes.includes(type)
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
-                      }`}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-4 mt-6">
-              <button
-                type="button"
-                onClick={handleClose}
-                disabled={isSubmittingInvite}
-                className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmittingInvite || !formData.businessName || !formData.contactName || !formData.email || !formData.state || formData.taxTypes.length === 0}
-                className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {isSubmittingInvite && (
-                  <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                )}
-                {isSubmittingInvite ? 'Sending...' : 'Send Invitation'}
-              </button>
-            </div>
+            ... invite form fields and submit button ...
           </form>
         )}
+        */}
       </div>
     </div>
   );
