@@ -6,6 +6,7 @@ import ClientHeader from '../components/client/ClientHeader';
 import MetricCard from '../components/dashboard/MetricCard';
 import TaxObligationRow from '../components/client/TaxObligationRow';
 import TaxBreakdownChart from '../components/client/TaxBreakdownChart';
+import { getClientDashboard } from '../services/clientApi';
 
 /**
  * CLIENT DASHBOARD PAGE
@@ -15,29 +16,44 @@ import TaxBreakdownChart from '../components/client/TaxBreakdownChart';
 const ClientDashboard = () => {
   const { clientId } = useParams();
   const [client, setClient] = useState(null);
+  const [dashboardData, setDashboardData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Get client data from localStorage (saved by Clients page)
+  // Fetch client data from localStorage and dashboard data from API
   useEffect(() => {
-    setIsLoading(true);
-
-    // Retrieve clients data from localStorage
-    const storedClients = localStorage.getItem('clientsData');
-
-    if (storedClients) {
+    const fetchClientDashboard = async () => {
       try {
-        const clients = JSON.parse(storedClients);
-        const foundClient = clients.find((c) => c.id === clientId);
-        setClient(foundClient || null);
-      } catch (err) {
-        console.error('Error parsing clients data:', err);
-        setClient(null);
-      }
-    } else {
-      setClient(null);
-    }
+        setIsLoading(true);
+        setError(null);
 
-    setIsLoading(false);
+        // Get client basic info from localStorage
+        const storedClients = localStorage.getItem('clientsData');
+        if (storedClients) {
+          const clients = JSON.parse(storedClients);
+          const foundClient = clients.find((c) => c.id === clientId);
+          setClient(foundClient || null);
+        }
+
+        // Fetch dashboard data from API
+        const response = await getClientDashboard(clientId);
+
+        if (response.status && response.data) {
+          setDashboardData(response.data);
+        } else {
+          throw new Error('Failed to load client dashboard data');
+        }
+      } catch (err) {
+        console.error('Client dashboard fetch error:', err);
+        setError(err.message || 'Failed to load client dashboard');
+        // Continue with fallback data
+        setDashboardData(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchClientDashboard();
   }, [clientId]);
 
   // Loading state
@@ -75,76 +91,75 @@ const ClientDashboard = () => {
     );
   }
 
-  // Key metrics
-  const metrics = [
+  // Helper function to format currency
+  const formatCurrency = (amount) => {
+    if (!amount && amount !== 0) return '₦0';
+    return `₦${amount.toLocaleString()}`;
+  };
+
+  // Helper function to format date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  // Fallback metrics
+  const fallbackMetrics = [
     {
       iconType: 'calendar',
       title: 'Tax Due This Month',
-      value: '₦24.8M',
+      value: '₦0',
       bgColor: 'bg-blue-50',
     },
     {
       iconType: 'check',
       title: 'Filings Completed',
-      value: '8',
+      value: '0',
       bgColor: 'bg-green-50',
     },
     {
       iconType: 'progress',
       title: 'Filings in Progress',
-      value: '3',
+      value: '0',
       bgColor: 'bg-orange-50',
     },
   ];
 
-  // Tax obligations
-  const taxObligations = [
+  // Map API data to metrics
+  const metrics = dashboardData ? [
     {
-      taxType: 'Companies Income Tax (CIT)',
-      description: 'FY 2024 Annual Returns',
-      dueDate: 'Feb 28',
-      amount: '₦2.0M',
-      status: 'Pending',
+      iconType: 'calendar',
+      title: 'Tax Due This Month',
+      value: formatCurrency(dashboardData.metricData?.taxDueThisMonth),
+      bgColor: 'bg-blue-50',
     },
     {
-      taxType: 'Withholding Tax (WHT)',
-      description: 'January 2026 Remittance',
-      dueDate: 'Feb 21',
-      amount: '₦280K',
-      status: 'Completed',
+      iconType: 'check',
+      title: 'Filings Completed',
+      value: dashboardData.metricData?.filingsCompleted?.toString() || '0',
+      bgColor: 'bg-green-50',
     },
     {
-      taxType: 'Pay As You Earn (PAYE)',
-      description: 'January 2026 Monthly Filing',
-      dueDate: 'Feb 10',
-      amount: '₦120K',
-      status: 'In Progress',
+      iconType: 'progress',
+      title: 'Filings in Progress',
+      value: dashboardData.metricData?.filingInProgress?.toString() || '0',
+      bgColor: 'bg-orange-50',
     },
-    {
-      taxType: 'Pay As You Earn (PAYE)',
-      description: 'January 2026 Monthly Filing',
-      dueDate: 'Feb 10',
-      amount: '₦120K',
-      status: 'In Progress',
-    },
-    {
-      taxType: 'Pay As You Earn (PAYE)',
-      description: 'January 2026 Monthly Filing',
-      dueDate: 'Feb 10',
-      amount: '₦120K',
-      status: 'In Progress',
-    },
-  ];
+  ] : fallbackMetrics;
 
-  // Tax breakdown data
-  const taxBreakdown = [
-    { label: 'CIT', amount: 2400000, color: '#6366f1' }, // Blue
-    { label: 'VAT', amount: 600000, color: '#10b981' }, // Green
-    { label: 'WHT', amount: 400000, color: '#f97316' }, // Orange
-    { label: 'PAYE', amount: 200000, color: '#ec4899' }, // Pink
-  ];
+  // Map API tax obligations
+  const taxObligations = dashboardData?.taxObligations || [];
 
-  const totalTax = taxBreakdown.reduce((sum, item) => sum + item.amount, 0);
+  // Build tax breakdown from taxBreakdownByType
+  const taxBreakdown = dashboardData?.taxBreakdownByType ? [
+    { label: 'CIT', amount: dashboardData.taxBreakdownByType.CIT || 0, color: '#6366f1' },
+    { label: 'VAT', amount: dashboardData.taxBreakdownByType.VAT || 0, color: '#10b981' },
+    { label: 'WHT', amount: dashboardData.taxBreakdownByType.WHT || 0, color: '#f97316' },
+    { label: 'PAYE', amount: dashboardData.taxBreakdownByType.PAYE || 0, color: '#ec4899' },
+  ].filter(item => item.amount > 0) : []; // Only show categories with amounts
+
+  const totalTax = dashboardData?.taxBreakdownByType?.total || taxBreakdown.reduce((sum, item) => sum + item.amount, 0);
 
   return (
     <div className="h-screen bg-white flex overflow-hidden">
@@ -158,6 +173,27 @@ const ClientDashboard = () => {
 
         {/* Page Content */}
         <main className="flex-1 !px-10 !py-8 overflow-y-auto">
+          {/* Error Banner */}
+          {error && (
+            <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+              <div className="flex items-center gap-3">
+                <svg className="w-5 h-5 text-yellow-600 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                  <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-yellow-900">Unable to load live client dashboard data</p>
+                  <p className="text-xs text-yellow-700 mt-1">Showing limited data. {error}</p>
+                </div>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="text-xs font-medium text-yellow-700 hover:text-yellow-800 underline"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Client Header */}
           <ClientHeader
             name={client.name}

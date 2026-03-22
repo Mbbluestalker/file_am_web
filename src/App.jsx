@@ -14,6 +14,7 @@ import SubmitVATReturn from './pages/SubmitVATReturn';
 import PaymentConfirmation from './pages/PaymentConfirmation';
 import EvidenceVault from './pages/EvidenceVault';
 import DocumentDetail from './pages/DocumentDetail';
+import Settings from './pages/Settings';
 import ComingSoon from './pages/ComingSoon';
 import Onboarding from './pages/Onboarding';
 import Login from './pages/Login';
@@ -206,7 +207,7 @@ function App() {
         } />
         <Route path="/settings" element={
           <ProtectedRoute>
-            <ComingSoon />
+            <Settings />
           </ProtectedRoute>
         } />
 

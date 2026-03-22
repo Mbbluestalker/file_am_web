@@ -39,6 +39,19 @@ export const getClientById = async (clientId) => {
   return response;
 };
 
+/**
+ * GET CLIENT DASHBOARD
+ * Fetch dashboard metrics and data for a specific client
+ * @param {string} clientId - The company ID of the client
+ */
+export const getClientDashboard = async (clientId) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/clients/${clientId}/dashboard`,
+    'GET'
+  );
+  return response;
+};
+
 // ============================================
 // BUSINESS PROFILE
 // ============================================
@@ -180,6 +193,7 @@ export default {
   // Client Management
   getClients,
   getClientById,
+  getClientDashboard,
 
   // Business Profile
   getBusinessProfile,

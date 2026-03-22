@@ -1,20 +1,60 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Calendar } from 'lucide-react';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/client/Sidebar';
 import { getAllClientsFromStorage } from '../utils/clientStorage';
+import { getFilings, getFilingsSummary } from '../services/filingsApi';
 
 const Filings = () => {
   const navigate = useNavigate();
   const [currentMonth, setCurrentMonth] = useState(new Date(2026, 1)); // February 2026
+  const [filings, setFilings] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Use first client as default for sidebar navigation
   const clients = getAllClientsFromStorage();
   const defaultClientId = clients[0]?.id || '1';
 
-  // Mock data for filings
-  const filings = [
+  // Fetch filings data from API
+  useEffect(() => {
+    const fetchFilings = async () => {
+      if (!defaultClientId) return;
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Fetch filings and summary in parallel
+        const [filingsResponse, summaryResponse] = await Promise.all([
+          getFilings(defaultClientId, 1, 50),
+          getFilingsSummary(defaultClientId)
+        ]);
+
+        if (filingsResponse.status && filingsResponse.data) {
+          // Handle both paginated and non-paginated responses
+          const filingsList = filingsResponse.data.data || filingsResponse.data.filings || filingsResponse.data;
+          setFilings(Array.isArray(filingsList) ? filingsList : []);
+        }
+
+        if (summaryResponse.status && summaryResponse.data) {
+          setSummary(summaryResponse.data);
+        }
+      } catch (err) {
+        console.error('Filings fetch error:', err);
+        setError(err.message || 'Failed to load filings');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchFilings();
+  }, [defaultClientId]);
+
+  // Fallback mock data for filings
+  const fallbackFilings = [
     {
       id: 1,
       title: 'VAT Return - February 2026',
@@ -110,6 +150,48 @@ const Filings = () => {
     return 'bg-orange-500';
   };
 
+  // Helper function to format date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  // Helper function to format currency
+  const formatCurrency = (amount) => {
+    if (!amount && amount !== 0) return '₦0';
+    return `₦${Math.round(amount).toLocaleString()}`;
+  };
+
+  // Map API status to UI status
+  const mapStatus = (apiStatus) => {
+    if (apiStatus === 'submitted' || apiStatus === 'paid') return 'submitted';
+    if (apiStatus === 'overdue') return 'in-progress'; // Show overdue as in-progress with medium risk
+    if (apiStatus === 'pending') return 'ready'; // Show pending as ready to file
+    return 'in-progress';
+  };
+
+  // Determine risk level based on status and due date
+  const getRiskLevel = (status, dueDate) => {
+    if (status === 'overdue') return 'medium';
+    if (status === 'pending') {
+      const due = new Date(dueDate);
+      const today = new Date();
+      const daysUntilDue = Math.ceil((due - today) / (1000 * 60 * 60 * 24));
+      if (daysUntilDue <= 7) return 'medium';
+      return 'low';
+    }
+    return null;
+  };
+
+  // Calculate readiness based on status
+  const getReadiness = (status) => {
+    if (status === 'submitted' || status === 'paid') return 100;
+    if (status === 'overdue') return 67;
+    if (status === 'pending') return 95;
+    return 50;
+  };
+
   const { daysInMonth, startingDayOfWeek } = getDaysInMonth(currentMonth);
   const monthName = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
 
@@ -124,6 +206,28 @@ const Filings = () => {
   const navigateMonth = (direction) => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + direction));
   };
+
+  // Transform API data to UI format
+  const displayFilings = filings.length > 0
+    ? filings.map(filing => {
+        const uiStatus = mapStatus(filing.status);
+        const riskLevel = getRiskLevel(filing.status, filing.dueDate);
+        const readiness = getReadiness(filing.status);
+
+        return {
+          id: filing.id,
+          title: `${filing.taxType} Return - ${filing.periodLabel}`,
+          dueDate: filing.dueDate,
+          lastUpdated: filing.updatedAt || filing.createdAt || new Date().toISOString(),
+          status: uiStatus,
+          readiness: readiness,
+          riskLevel: riskLevel,
+          amount: filing.amount,
+          taxType: filing.taxType,
+          periodLabel: filing.periodLabel,
+        };
+      })
+    : fallbackFilings;
 
   return (
     <div className="h-screen bg-white flex overflow-hidden">
@@ -145,6 +249,43 @@ const Filings = () => {
                 Manage VAT filings, track compliance deadlines, and monitor submission status
               </p>
             </div>
+
+            {/* Loading State */}
+            {isLoading && (
+              <div className="flex items-center justify-center py-20">
+                <div className="text-center">
+                  <svg className="animate-spin h-12 w-12 text-teal-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <p className="text-gray-600">Loading filings...</p>
+                </div>
+              </div>
+            )}
+
+            {/* Error State */}
+            {error && !isLoading && (
+              <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                <div className="flex items-center gap-3">
+                  <svg className="w-5 h-5 text-yellow-600 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-yellow-900">Unable to load filings data</p>
+                    <p className="text-xs text-yellow-700 mt-1">{error}</p>
+                  </div>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="text-xs font-medium text-yellow-700 hover:text-yellow-800 underline"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!isLoading && (
+              <>
 
             {/* Main Content Area */}
             <div className="flex gap-6">
@@ -235,14 +376,14 @@ const Filings = () => {
             <h2 className="text-lg font-semibold text-gray-900 mb-4">All Filings</h2>
 
             <div className="space-y-4">
-              {filings.map((filing) => (
+              {displayFilings.map((filing) => (
                 <div
                   key={filing.id}
                   onClick={() => navigate(`/filings/${filing.id}`)}
                   className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 hover:shadow-sm transition-all cursor-pointer"
                 >
                   <div className="flex items-start justify-between mb-2">
-                    <h3 className="font-medium text-gray-900 text-sm">{filing.title}</h3>
+                    <h3 className="font-medium text-gray-900 text-sm">{filing.title || filing.filingName || 'Untitled Filing'}</h3>
                     {filing.status === 'submitted' && (
                       <Calendar className="w-4 h-4 text-green-600" />
                     )}
@@ -257,12 +398,12 @@ const Filings = () => {
                       <div className="mb-2">
                         <div className="flex justify-between text-xs text-gray-500 mb-1">
                           <span>Readiness</span>
-                          <span className="font-medium text-gray-700">{filing.readiness}%</span>
+                          <span className="font-medium text-gray-700">{filing.readiness || 0}%</span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
                           <div
-                            className={`h-2 rounded-full transition-all ${getProgressColor(filing.readiness)}`}
-                            style={{ width: `${filing.readiness}%` }}
+                            className={`h-2 rounded-full transition-all ${getProgressColor(filing.readiness || 0)}`}
+                            style={{ width: `${filing.readiness || 0}%` }}
                           />
                         </div>
                       </div>
@@ -272,19 +413,28 @@ const Filings = () => {
                   <div className="text-xs text-gray-500 space-y-1">
                     <div className="flex justify-between">
                       <span>Due Date</span>
-                      <span className="font-medium text-gray-700">{filing.dueDate}</span>
+                      <span className="font-medium text-gray-700">{formatDate(filing.dueDate)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Last Updated</span>
-                      <span className="text-gray-600">{filing.lastUpdated}</span>
+                      <span className="text-gray-600">{formatDate(filing.lastUpdated || filing.updatedAt)}</span>
                     </div>
                   </div>
                 </div>
               ))}
+
+              {displayFilings.length === 0 && (
+                <div className="py-12 text-center">
+                  <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">No filings found</p>
+                </div>
+              )}
                 </div>
                 </div>
               </div>
             </div>
+            </>
+            )}
           </div>
         </main>
       </div>

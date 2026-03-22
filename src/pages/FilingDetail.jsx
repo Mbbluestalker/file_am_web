@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronDown, ChevronRight, FileText, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/client/Sidebar';
 import { getAllClientsFromStorage } from '../utils/clientStorage';
+import { getFilingReport } from '../services/filingsApi';
 
 const FilingDetail = () => {
   const navigate = useNavigate();
@@ -18,8 +19,46 @@ const FilingDetail = () => {
     inputVat: false,
   });
 
-  // Mock data
-  const filing = {
+  const [filingReport, setFilingReport] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch filing report from API
+  useEffect(() => {
+    const fetchFilingReport = async () => {
+      if (!defaultClientId || !id) return;
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const response = await getFilingReport(defaultClientId, id);
+
+        if (response.status && response.data) {
+          setFilingReport(response.data);
+        } else {
+          throw new Error('Failed to load filing report');
+        }
+      } catch (err) {
+        console.error('Filing report fetch error:', err);
+        setError(err.message || 'Failed to load filing report');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchFilingReport();
+  }, [defaultClientId, id]);
+
+  // Helper function to format date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  // Fallback mock data
+  const fallbackFiling = {
     id,
     title: 'VAT Return - January 2026',
     subtitle: 'Review checklist and resolve blockers before submission',
@@ -30,7 +69,7 @@ const FilingDetail = () => {
     updatedBy: 'System',
   };
 
-  const checklistItems = [
+  const fallbackChecklistItems = [
     {
       id: 'invoices',
       title: 'All invoices uploaded and verified',
@@ -71,6 +110,24 @@ const FilingDetail = () => {
     },
   ];
 
+  // Map API data to component format
+  const filing = filingReport ? {
+    id: filingReport.id || id,
+    title: filingReport.title || `${filingReport.taxType} Return - ${filingReport.periodLabel}` || 'Filing Report',
+    subtitle: filingReport.description || 'Review checklist and resolve blockers before submission',
+    readiness: filingReport.readiness || 0,
+    period: filingReport.periodLabel || filingReport.period || 'N/A',
+    dueDate: formatDate(filingReport.dueDate),
+    lastUpdated: formatDate(filingReport.lastUpdated || filingReport.updatedAt || filingReport.createdAt),
+    updatedBy: filingReport.updatedBy || 'System',
+    amount: filingReport.amount,
+    taxType: filingReport.taxType,
+    status: filingReport.status,
+  } : fallbackFiling;
+
+  // Use checklist from API if available, otherwise use fallback
+  const checklistItems = filingReport?.checklist || fallbackChecklistItems;
+
   const toggleSection = (sectionId) => {
     setExpandedSections((prev) => ({
       ...prev,
@@ -102,6 +159,44 @@ const FilingDetail = () => {
 
         {/* Page Content */}
         <main className="flex-1 bg-gray-50 overflow-y-auto">
+          {/* Loading State */}
+          {isLoading && (
+            <div className="flex items-center justify-center py-20">
+              <div className="text-center">
+                <svg className="animate-spin h-12 w-12 text-teal-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p className="text-gray-600">Loading filing report...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && !isLoading && (
+            <div className="p-10">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                <div className="flex items-center gap-3">
+                  <svg className="w-5 h-5 text-yellow-600 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-yellow-900">Unable to load filing report</p>
+                    <p className="text-xs text-yellow-700 mt-1">{error}</p>
+                  </div>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="text-xs font-medium text-yellow-700 hover:text-yellow-800 underline"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!isLoading && (
+            <>
           {/* Page Header */}
           <div className="bg-black text-white px-10 py-6">
             <div className="flex items-center gap-3">
@@ -269,6 +364,8 @@ const FilingDetail = () => {
             </div>
             </div>
           </div>
+          </>
+          )}
         </main>
       </div>
     </div>

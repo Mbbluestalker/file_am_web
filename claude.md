@@ -523,6 +523,24 @@ This ensures client-side routing works correctly on Vercel.
 4. **Comments:** Add JSDoc comments for functions and components
 5. **Error Handling:** Always handle errors in API calls and async operations
 
+### Design Implementation Rules
+
+**⚠️ CRITICAL: ALWAYS VERIFY DESIGNS BEFORE IMPLEMENTING**
+
+1. **NEVER ASSUME UI PATTERNS:** Always check the Figma design files in `src/assets/design/` before implementing any feature
+2. **EXACT DESIGN MATCHING:** UI components must match the design pixel-perfect:
+   - Check form fields (text inputs, selects, checkboxes, radio buttons, toggles)
+   - Verify button styles, positions, and labels
+   - Match colors, spacing, borders, and typography
+   - Use exact icon placements and sizes
+3. **DESIGN FILES LOCATION:** All design files are in `src/assets/design/`
+4. **VERIFICATION PROCESS:**
+   - Read the design file for the feature you're implementing
+   - Note all UI elements, their types, and layouts
+   - Implement exactly what you see in the design
+   - Do NOT substitute similar-looking components (e.g., toggles for checkboxes)
+5. **WHEN IN DOUBT:** Ask the user or check the design file again
+
 ### Git Workflow
 
 Current branch: `main`
