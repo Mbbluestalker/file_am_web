@@ -98,11 +98,11 @@ const ClientDashboard = () => {
   };
 
   // Helper function to format date
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
+  // const formatDate = (dateString) => {
+  //   if (!dateString) return 'N/A';
+  //   const date = new Date(dateString);
+  //   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  // };
 
   // Fallback metrics
   const fallbackMetrics = [

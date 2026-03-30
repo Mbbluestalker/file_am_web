@@ -195,7 +195,7 @@ const EvidenceVault = () => {
                       filteredDocs.map((doc, idx) => (
                         <div
                           key={doc.id}
-                          onClick={() => navigate(`/evidence-vault/${doc.id}`)}
+                          onClick={() => navigate(`/evidence-vault/${doc.id}`, { state: { doc } })}
                           className={`flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors ${
                             idx < filteredDocs.length - 1 ? 'border-b border-gray-100' : ''
                           }`}

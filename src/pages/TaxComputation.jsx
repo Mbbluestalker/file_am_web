@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import Header from '../components/layout/Header';
@@ -19,6 +19,7 @@ import {
  */
 const TaxComputation = () => {
   const { clientId } = useParams();
+  const navigate = useNavigate();
   const client = getClientFromStorage(clientId);
 
   // State management
@@ -344,7 +345,16 @@ const TaxComputation = () => {
                     {statusBanner.badge}
                   </span>
                 </div>
-                <p className="text-white text-sm leading-relaxed">{statusBanner.description}</p>
+                <p className="text-white text-sm leading-relaxed mb-4">{statusBanner.description}</p>
+                <button
+                  onClick={() => navigate(`/clients/${clientId}/tax-computation/breakdown`)}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-900 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors"
+                >
+                  View Computation Breakdown
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
               </div>
 
               {/* Turnover Chart */}

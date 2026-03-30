@@ -222,9 +222,8 @@ const Compliance = () => {
                       <StatusBadge status={row.status} />
                       <button
                         onClick={() => {
-                          if (row.filingId || row.filing_id) {
-                            navigate(`/filings/${row.filingId || row.filing_id}`);
-                          }
+                          const filingId = row.id || row.filingId || row.filing_id;
+                          if (filingId) navigate(`/filings/${filingId}`);
                         }}
                         className="text-sm font-medium text-brand hover:text-brand-700 transition-colors"
                       >

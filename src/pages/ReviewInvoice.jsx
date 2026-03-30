@@ -47,14 +47,17 @@ const ReviewInvoice = () => {
           const data = response.data;
           setInvoiceData(data);
 
-          // Set form data
+          // Set form data from nested invoiceData
+          const inv = data.invoiceData || {};
           setFormData({
-            invoiceNumber: data.invoiceNumber || '',
-            invoiceDate: data.invoiceDate || data.date || '',
-            vendorName: data.vendorName || data.vendor || '',
-            vendorTin: data.vendorTin || data.tin || '',
-            subtotalExclVat: data.subtotalExclVat || data.amount || 0,
-            vatAmount: data.vatAmount || data.vat || 0,
+            invoiceNumber: inv.invoiceNumber || '',
+            invoiceDate: inv.invoiceDate
+              ? new Date(inv.invoiceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+              : '',
+            vendorName: inv.vendorName || '',
+            vendorTin: inv.vendorTin || '',
+            subtotalExclVat: inv.subtotalExclVat || 0,
+            vatAmount: inv.vatAmount || 0,
           });
         } else {
           throw new Error('Failed to load invoice data');
@@ -163,8 +166,8 @@ const ReviewInvoice = () => {
     );
   }
 
-  const totalAmount = formData.subtotalExclVat + formData.vatAmount;
-  const inputVatEligible = formData.vatAmount > 0;
+  const totalAmount = invoiceData?.impactSummary?.totalExpense ?? (formData.subtotalExclVat + formData.vatAmount);
+  const inputVatEligible = (invoiceData?.impactSummary?.eligibleAmount ?? formData.vatAmount) > 0;
 
   return (
     <div className="h-screen bg-white flex overflow-hidden">
@@ -212,19 +215,23 @@ const ReviewInvoice = () => {
             <div className="grid grid-cols-4 gap-6 mb-8">
               <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="text-xs font-medium text-gray-500 uppercase mb-1">Upload Source</div>
-                <div className="text-sm font-medium text-gray-900">{invoiceData.uploadSource || 'pdf'}</div>
+                <div className="text-sm font-medium text-gray-900">{invoiceData.metrics?.uploadSource || '—'}</div>
               </div>
               <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="text-xs font-medium text-gray-500 uppercase mb-1">Upload Date</div>
-                <div className="text-sm font-medium text-gray-900">{invoiceData.uploadDate || '11 Feb 2026, 06:58'}</div>
+                <div className="text-sm font-medium text-gray-900">
+                  {invoiceData.metrics?.uploadDate
+                    ? new Date(invoiceData.metrics.uploadDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                    : '—'}
+                </div>
               </div>
               <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="text-xs font-medium text-gray-500 uppercase mb-1">Processing Method</div>
-                <div className="text-sm font-medium text-gray-900">{invoiceData.processingMethod || 'AI Extraction'}</div>
+                <div className="text-sm font-medium text-gray-900">{invoiceData.metrics?.processingMethod || '—'}</div>
               </div>
               <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="text-xs font-medium text-gray-500 uppercase mb-1">Manual Edits</div>
-                <div className="text-sm font-medium text-gray-900">{invoiceData.manualEdits || 'None'}</div>
+                <div className="text-sm font-medium text-gray-900">{invoiceData.metrics?.manualEdit || 'None'}</div>
               </div>
             </div>
 

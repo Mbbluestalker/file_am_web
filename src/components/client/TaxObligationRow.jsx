@@ -3,6 +3,15 @@
  *
  * Displays a single tax obligation entry in the table
  */
+const formatDate = (date) => {
+  if (!date) return '—';
+  return new Date(date).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
+
 const TaxObligationRow = ({ taxType, description, dueDate, amount, status }) => {
   const getStatusBadge = () => {
     if (status === 'Completed') {
@@ -42,9 +51,9 @@ const TaxObligationRow = ({ taxType, description, dueDate, amount, status }) => 
   };
 
   return (
-    <div className="flex items-center !gap-6 !py-5 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors">
+    <div className="flex items-center !gap-6 !py-5 !px-6 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors">
       {/* Icon */}
-      <div className="!pl-6">{getIcon()}</div>
+      <div className="w-5 flex-shrink-0">{getIcon()}</div>
 
       {/* Tax Type */}
       <div className="flex-1 min-w-0">
@@ -53,13 +62,13 @@ const TaxObligationRow = ({ taxType, description, dueDate, amount, status }) => 
       </div>
 
       {/* Due Date */}
-      <div className="w-24 text-sm text-gray-700">{dueDate}</div>
+      <div className="w-24 text-sm text-gray-700">{formatDate(dueDate)}</div>
 
       {/* Amount */}
       <div className="w-32 text-sm font-semibold text-gray-900">{amount}</div>
 
       {/* Status */}
-      <div className="w-32 !pr-6">{getStatusBadge()}</div>
+      <div className="w-32">{getStatusBadge()}</div>
     </div>
   );
 };

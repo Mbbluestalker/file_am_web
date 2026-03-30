@@ -5,6 +5,7 @@ import Clients from './pages/Clients';
 import ClientDashboard from './pages/ClientDashboard';
 import BusinessProfile from './pages/BusinessProfile';
 import TaxComputation from './pages/TaxComputation';
+import TaxComputationBreakdown from './pages/TaxComputationBreakdown';
 import Financials from './pages/Financials';
 import FinancialReports from './pages/FinancialReports';
 import ProcessingDocument from './pages/ProcessingDocument';
@@ -118,6 +119,11 @@ function App() {
         <Route path="/clients/:clientId/tax-computation" element={
           <ProtectedRoute>
             <TaxComputation />
+          </ProtectedRoute>
+        } />
+        <Route path="/clients/:clientId/tax-computation/breakdown" element={
+          <ProtectedRoute>
+            <TaxComputationBreakdown />
           </ProtectedRoute>
         } />
 

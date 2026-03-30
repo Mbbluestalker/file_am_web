@@ -67,12 +67,13 @@ const Financials = () => {
             vendor: invoice.clientName,
             amount: parseFloat(invoice.totalAmount),
             status: invoice.paymentStatus.toLowerCase() === 'outstanding' ? 'needs-review' : 'clean',
-            uploadMethod: 'PDF Upload', // API doesn't provide this
-            confidence: 95, // API doesn't provide this
+            uploadMethod: '—',
+            confidence: null,
             dueDate: invoice.dueDate,
             clientEmail: invoice.clientEmail,
             clientAddress: invoice.clientAddress,
             lineItems: invoice.lineItems || [],
+            financialDocumentId: invoice.financialDocumentId || null,
           }));
 
           setInvoices(transformedInvoices);
@@ -213,7 +214,8 @@ const Financials = () => {
 
   // Handle invoice click
   const handleInvoiceClick = (invoice) => {
-    navigate(`/clients/${clientId}/financials/review/${invoice.id}`);
+    if (!invoice.financialDocumentId) return;
+    navigate(`/clients/${clientId}/financials/review/${invoice.financialDocumentId}`);
   };
 
   return (
@@ -363,19 +365,25 @@ const Financials = () => {
                 <div className="col-span-2 flex items-center">{getStatusBadge(invoice.status)}</div>
                 <div className="col-span-1 flex items-center text-xs text-gray-500">{invoice.uploadMethod}</div>
                 <div className="col-span-1 flex items-center gap-2">
-                  <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${
-                        invoice.confidence >= 90
-                          ? 'bg-green-500'
-                          : invoice.confidence >= 75
-                          ? 'bg-orange-500'
-                          : 'bg-red-500'
-                      }`}
-                      style={{ width: `${invoice.confidence}%` }}
-                    />
-                  </div>
-                  <span className="text-xs text-gray-600 w-8">{invoice.confidence}%</span>
+                  {invoice.confidence != null ? (
+                    <>
+                      <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${
+                            invoice.confidence >= 90
+                              ? 'bg-green-500'
+                              : invoice.confidence >= 75
+                              ? 'bg-orange-500'
+                              : 'bg-red-500'
+                          }`}
+                          style={{ width: `${invoice.confidence}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-600 w-8">{invoice.confidence}%</span>
+                    </>
+                  ) : (
+                    <span className="text-xs text-gray-400">—</span>
+                  )}
                 </div>
               </div>
             ))}

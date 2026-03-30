@@ -9,7 +9,7 @@
  * - Tax assumptions
  */
 
-import { makeRequest, API_VERSION } from './apiConfig';
+import { makeRequest, API_VERSION, BASE_URL, getAccessToken } from './apiConfig';
 
 // ============================================
 // TAX CONFIGURATION
@@ -169,6 +169,91 @@ export const updateTaxAssumptions = async (clientId, assumptions) => {
     assumptions
   );
   return response;
+};
+
+// ============================================
+// COMPUTATION REPORTS
+// ============================================
+
+/**
+ * GET CIT COMPUTATION REPORT
+ * @param {string} clientId
+ */
+export const getCitReport = async (clientId) => {
+  return makeRequest(
+    `/api/v${API_VERSION}/enterprise/clients/${clientId}/reports/cit`,
+    'GET'
+  );
+};
+
+/**
+ * GET VAT PAYMENT REPORT
+ * @param {string} clientId
+ */
+export const getVatReport = async (clientId) => {
+  return makeRequest(
+    `/api/v${API_VERSION}/enterprise/clients/${clientId}/reports/vat-payment`,
+    'GET'
+  );
+};
+
+/**
+ * GET WHT REPORT
+ * @param {string} clientId
+ */
+export const getWhtReport = async (clientId) => {
+  return makeRequest(
+    `/api/v${API_VERSION}/enterprise/clients/${clientId}/reports/wht`,
+    'GET'
+  );
+};
+
+/**
+ * GET PAYE COMPUTATION REPORT
+ * @param {string} clientId
+ */
+export const getPayeReport = async (clientId) => {
+  return makeRequest(
+    `/api/v${API_VERSION}/enterprise/clients/${clientId}/reports/paye`,
+    'GET'
+  );
+};
+
+// ============================================
+// REPORT EXPORT
+// ============================================
+
+/**
+ * EXPORT ALL REPORTS (PDF download)
+ * @param {string} clientId
+ * @param {string} dateFrom  - e.g. "2025-01-01"
+ * @param {string} dateTo    - e.g. "2025-12-31"
+ * @param {string} reportType - optional, e.g. "cit", "vat", "" for all
+ */
+export const exportAllReports = async (clientId, dateFrom, dateTo, reportType = '') => {
+  const accessToken = getAccessToken();
+  const params = new URLSearchParams({ dateFrom, dateTo, reportType });
+  const response = await fetch(
+    `${BASE_URL}/api/v${API_VERSION}/enterprise/clients/${clientId}/reports/export-all?${params}`,
+    { method: 'GET', headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+
+  if (!response.ok) throw new Error('Export failed');
+
+  const blob = await response.blob();
+  const contentDisposition = response.headers.get('content-disposition');
+  const filename = contentDisposition
+    ? contentDisposition.split('filename=')[1]?.replace(/"/g, '') || 'tax-report.pdf'
+    : 'tax-report.pdf';
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 };
 
 // ============================================

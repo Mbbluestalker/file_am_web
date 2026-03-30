@@ -154,10 +154,6 @@ const EXPENSE_DATA = {
 const TABS = [
   { id: 'profitLoss', label: 'Profit & Loss' },
   { id: 'balanceSheet', label: 'Balance Sheet' },
-  { id: 'cashFlow', label: 'Cash Flow' },
-  { id: 'taxLiability', label: 'Tax Liability' },
-  { id: 'revenueAnalytics', label: 'Revenue Analytics' },
-  { id: 'expenseIntelligence', label: 'Expense Intelligence' },
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -273,10 +269,10 @@ const FinancialReports = () => {
     return `${amount < 0 ? '-' : ''}₦${abs.toLocaleString()}`;
   };
 
-  const formatPercentage = (val) => {
-    if (!val && val !== 0) return '';
-    return val > 0 ? `+${val}%` : `${val}%`;
-  };
+  // const formatPercentage = (val) => {
+  //   if (!val && val !== 0) return '';
+  //   return val > 0 ? `+${val}%` : `${val}%`;
+  // };
 
   if (isLoading) {
     return (
