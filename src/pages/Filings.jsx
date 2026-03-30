@@ -10,6 +10,7 @@ const Filings = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date(2026, 1)); // February 2026
   const [filings, setFilings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [summary, setSummary] = useState(null);
 
   const clients = getAllClientsFromStorage();
   const defaultClientId = clients[0]?.id || '1';
@@ -19,13 +20,16 @@ const Filings = () => {
       if (!defaultClientId) return;
       try {
         setIsLoading(true);
-        const [filingsResponse] = await Promise.all([
+        const [filingsResponse, summaryResponse] = await Promise.all([
           getFilings(defaultClientId, 1, 50),
           getFilingsSummary(defaultClientId).catch(() => null),
         ]);
         if (filingsResponse?.status && filingsResponse.data) {
           const list = filingsResponse.data.data || filingsResponse.data.filings || filingsResponse.data;
           setFilings(Array.isArray(list) ? list : []);
+        }
+        if (summaryResponse?.status && summaryResponse.data) {
+          setSummary(summaryResponse.data);
         }
       } catch (err) {
         console.error('Filings fetch error:', err);
@@ -73,8 +77,31 @@ const Filings = () => {
   const { daysInMonth, startingDayOfWeek } = getDaysInMonth(currentMonth);
   const monthName = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
 
-  // Hardcoded marked dates for demo (Feb 2026)
-  const markedDates = { 11: 'today', 21: 'submitted' };
+  // Build marked dates from filing due dates in the current month
+  const markedDates = {};
+  const today = new Date();
+  if (
+    today.getFullYear() === currentMonth.getFullYear() &&
+    today.getMonth() === currentMonth.getMonth()
+  ) {
+    markedDates[today.getDate()] = 'today';
+  }
+  filings.forEach((f) => {
+    if (!f.dueDate) return;
+    const due = new Date(f.dueDate);
+    if (
+      due.getFullYear() === currentMonth.getFullYear() &&
+      due.getMonth() === currentMonth.getMonth()
+    ) {
+      const day = due.getDate();
+      if (markedDates[day] === 'today') return; // don't overwrite today marker
+      const status =
+        f.status === 'submitted' || f.status === 'paid' ? 'submitted'
+        : f.status === 'overdue' ? 'overdue'
+        : 'in-progress';
+      markedDates[day] = status;
+    }
+  });
 
   const navigateMonth = (dir) =>
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + dir));
@@ -196,7 +223,11 @@ const Filings = () => {
                         const day = i + 1;
                         const mark = markedDates[day];
                         const isToday = mark === 'today';
-                        const hasSubmitted = mark === 'submitted';
+                        const dotColor =
+                          mark === 'submitted' ? 'bg-green-500'
+                          : mark === 'overdue' ? 'bg-red-500'
+                          : mark === 'in-progress' ? 'bg-blue-500'
+                          : null;
 
                         return (
                           <div key={day} className="flex flex-col items-center py-1">
@@ -207,10 +238,10 @@ const Filings = () => {
                             >
                               {day}
                             </div>
-                            {hasSubmitted && (
-                              <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-0.5" />
-                            )}
-                            {!hasSubmitted && <div className="h-2" />}
+                            {dotColor
+                              ? <div className={`w-1.5 h-1.5 rounded-full ${dotColor} mt-0.5`} />
+                              : <div className="h-2" />
+                            }
                           </div>
                         );
                       })}
@@ -219,14 +250,23 @@ const Filings = () => {
                     {/* Legend — black bar */}
                     <div className="bg-gray-900 px-6 py-4 flex items-center gap-8">
                       {[
-                        { color: 'bg-green-500', label: 'Submitted' },
-                        { color: 'bg-red-500', label: 'Overdue' },
-                        { color: 'bg-blue-500', label: 'In Progress' },
-                        { color: 'bg-orange-400', label: 'Today' },
-                      ].map(({ color, label }) => (
-                        <div key={label} className="flex items-center gap-2">
-                          <div className={`w-2.5 h-2.5 rounded-full ${color}`} />
-                          <span className="text-xs text-gray-300">{label}</span>
+                        { color: 'bg-green-500', label: 'Submitted', key: 'submitted' },
+                        { color: 'bg-red-500', label: 'Overdue', key: 'overdue' },
+                        { color: 'bg-blue-500', label: 'In Progress', key: 'inProgress' },
+                        { color: 'bg-orange-400', label: 'Today', key: 'today' },
+                      ].map(({ color, label, key }) => (
+                        <div key={label} className="flex items-center gap-3">
+                          <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${color}`} />
+                          <div>
+                            <span className="text-xs text-gray-300">{label}</span>
+                            {summary?.[key] && (
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-xs font-bold text-white">{summary[key].count}</span>
+                                <span className="text-xs text-gray-400">·</span>
+                                <span className="text-xs text-gray-400">{summary[key].days} days</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
