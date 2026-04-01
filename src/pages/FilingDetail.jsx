@@ -1,48 +1,76 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/client/Sidebar';
 import { getAllClientsFromStorage } from '../utils/clientStorage';
 import { getFilingReport } from '../services/filingsApi';
+import { getEvidenceVaultDocuments } from '../services/evidenceVaultApi';
+import { getVatComputationResults } from '../services/taxApi';
 
 const FilingDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const location = useLocation();
 
   const clients = getAllClientsFromStorage();
   const defaultClientId = clients[0]?.id || '1';
 
+  const rawFiling = location.state?.filing || null;
+
   const [expandedItems, setExpandedItems] = useState({ invoices: true });
-  const [filingReport, setFilingReport] = useState(null);
+  const [report, setReport] = useState(null);
+  const [documents, setDocuments] = useState([]);
+  const [vatResults, setVatResults] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchFilingReport = async () => {
+    const fetchData = async () => {
       if (!defaultClientId || !id) return;
       try {
         setIsLoading(true);
-        const response = await getFilingReport(defaultClientId, id);
-        if (response?.status && response.data) {
-          setFilingReport(response.data);
+        const year = rawFiling?.periodYear;
+        const month = rawFiling?.periodMonth;
+        const dateFrom = year && month ? new Date(year, month - 1, 1).toISOString().split('T')[0] : '';
+        const dateTo = year && month ? new Date(year, month, 0).toISOString().split('T')[0] : '';
+
+        const [reportRes, docsRes, vatRes] = await Promise.allSettled([
+          getFilingReport(defaultClientId, id),
+          getEvidenceVaultDocuments(defaultClientId, 1, 50, dateFrom, dateTo),
+          getVatComputationResults(defaultClientId),
+        ]);
+
+        if (reportRes.status === 'fulfilled' && reportRes.value?.status && reportRes.value.data) {
+          setReport(reportRes.value.data);
+        }
+        if (docsRes.status === 'fulfilled' && docsRes.value?.status && docsRes.value.data) {
+          const list = docsRes.value.data.data || docsRes.value.data;
+          setDocuments(Array.isArray(list) ? list : []);
+        }
+        if (vatRes.status === 'fulfilled' && vatRes.value?.status && vatRes.value.data) {
+          setVatResults(vatRes.value.data);
         }
       } catch (err) {
-        console.error('Filing report fetch error:', err);
+        console.error('Filing detail fetch error:', err);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchFilingReport();
+    fetchData();
   }, [defaultClientId, id]);
 
-  const fallbackFiling = {
-    title: 'VAT Return - January 2026',
-    subtitle: 'Review checklist and resolve blockers before submission',
-    readiness: 43,
-    period: 'January 2026',
-    dueDate: '21 February 2026',
-    lastUpdated: '2026-02-11 14:30',
-    updatedBy: 'System',
-  };
+  const filing = rawFiling
+    ? {
+        title: `${rawFiling.taxType} Return - ${rawFiling.periodLabel || ''}`,
+        subtitle: 'Review checklist and resolve blockers before submission',
+        period: rawFiling.periodLabel || '—',
+        dueDate: rawFiling.dueDate
+          ? new Date(rawFiling.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+          : '—',
+        amount: rawFiling.amount ?? null,
+        status: rawFiling.status || '—',
+        readiness: report?.readiness ?? 0,
+      }
+    : null;
 
   const fallbackChecklist = [
     {
@@ -51,17 +79,15 @@ const FilingDetail = () => {
       subtitle: 'Upload and review all sales and purchase invoices for the filing period',
       status: 'complete',
       complianceRequirement: 'VATA Section 10 - All VAT invoices must be properly documented',
-      linkedEvidence: ['INV-2026-001', 'INV-2026-002', 'INV-2026-003'],
       completedAt: '2026-02-11 14:30',
-      completedBy: 'John Okeke',
+      completedBy: 'System',
     },
     {
       id: 'vatCalc',
       title: 'VAT calculation verified',
-      subtitle: 'Confirm all VAT amounts calculated correctly at standard rate (7.5%)',
+      subtitle: 'Confirm all VAT amounts calculated correctly at standard rate',
       status: 'complete',
-      complianceRequirement: 'VATA Section 4 - Standard rate of 7.5% applies',
-      linkedEvidence: ['Tax Computation Sheet'],
+      complianceRequirement: 'VATA Section 4 - Standard rate applies to all taxable supplies',
       completedAt: '2026-02-11 15:00',
       completedBy: 'System',
     },
@@ -71,28 +97,18 @@ const FilingDetail = () => {
       subtitle: 'Reconcile all input VAT claims with supporting vendor invoices',
       status: 'pending',
       complianceRequirement: 'VATA Section 16 - Input tax deductibility requirements',
-      linkedEvidence: [],
       completedAt: null,
       completedBy: null,
     },
   ];
 
-  const filing = filingReport
-    ? {
-        title: filingReport.title || `${filingReport.taxType} Return - ${filingReport.periodLabel}`,
-        subtitle: filingReport.description || 'Review checklist and resolve blockers before submission',
-        readiness: filingReport.readiness || 0,
-        period: filingReport.periodLabel || filingReport.period || '—',
-        dueDate: filingReport.dueDate ? new Date(filingReport.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '—',
-        lastUpdated: filingReport.updatedAt ? new Date(filingReport.updatedAt).toLocaleString('en-GB') : '—',
-        updatedBy: filingReport.updatedBy || 'System',
-      }
-    : fallbackFiling;
-
-  const checklistItems = filingReport?.checklist || fallbackChecklist;
+  const checklistItems = report?.checklist || fallbackChecklist;
 
   const toggleItem = (itemId) =>
     setExpandedItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
+
+  const fmt = (n) =>
+    n != null ? `₦${Number(n).toLocaleString('en-NG', { minimumFractionDigits: 2 })}` : '—';
 
   const StatusIcon = ({ status }) => {
     if (status === 'complete') {
@@ -140,8 +156,8 @@ const FilingDetail = () => {
                     </svg>
                   </button>
                   <div>
-                    <h1 className="text-xl font-bold">{filing.title}</h1>
-                    <p className="text-sm text-gray-400 mt-0.5">{filing.subtitle}</p>
+                    <h1 className="text-xl font-bold">{filing?.title || '—'}</h1>
+                    <p className="text-sm text-gray-400 mt-0.5">{filing?.subtitle || ''}</p>
                   </div>
                 </div>
               </div>
@@ -154,97 +170,130 @@ const FilingDetail = () => {
                     <h2 className="text-lg font-bold text-gray-900">Readiness Score</h2>
                     <span
                       className={`px-3 py-0.5 rounded text-sm font-bold ${
-                        filing.readiness >= 80
+                        (filing?.readiness ?? 0) >= 80
                           ? 'bg-green-100 text-green-700'
-                          : filing.readiness >= 50
+                          : (filing?.readiness ?? 0) >= 50
                           ? 'bg-orange-100 text-orange-700'
                           : 'bg-red-100 text-red-700'
                       }`}
                     >
-                      {filing.readiness}%
+                      {filing?.readiness ?? 0}%
                     </span>
                   </div>
 
                   {/* Financial Data */}
                   <h3 className="text-base font-semibold text-gray-900 mb-4">Financial Data</h3>
 
-                  <div className="space-y-3">
-                    {checklistItems.map((item) => (
-                      <div key={item.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                        {/* Item header */}
-                        <button
-                          className="w-full flex items-start gap-3 px-5 py-4 text-left hover:bg-gray-50 transition-colors"
-                          onClick={() => toggleItem(item.id)}
-                        >
-                          <StatusIcon status={item.status} />
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-gray-900 text-sm">{item.title}</p>
-                            <p className="text-xs text-gray-400 mt-0.5">{item.subtitle}</p>
-                          </div>
-                          <svg
-                            className={`w-5 h-5 text-gray-400 shrink-0 transition-transform mt-0.5 ${expandedItems[item.id] ? 'rotate-90' : ''}`}
-                            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  {checklistItems.length > 0 ? (
+                    <div className="space-y-3">
+                      {checklistItems.map((item) => (
+                        <div key={item.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                          <button
+                            className="w-full flex items-start gap-3 px-5 py-4 text-left hover:bg-gray-50 transition-colors"
+                            onClick={() => toggleItem(item.id)}
                           >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
+                            <StatusIcon status={item.status} />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-gray-900 text-sm">{item.title}</p>
+                              <p className="text-xs text-gray-400 mt-0.5">{item.subtitle}</p>
+                            </div>
+                            <svg
+                              className={`w-5 h-5 text-gray-400 shrink-0 transition-transform mt-0.5 ${expandedItems[item.id] ? 'rotate-90' : ''}`}
+                              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
 
-                        {/* Expanded content */}
-                        {expandedItems[item.id] && (
-                          <div className="border-t border-gray-100 px-5 pb-4 pt-4 space-y-3">
-                            {/* Compliance Requirement */}
-                            {item.complianceRequirement && (
-                              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-                                <div className="flex items-start gap-2">
-                                  <svg className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                                  </svg>
-                                  <div>
-                                    <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wide mb-1">Compliance Requirement</p>
-                                    <p className="text-xs font-medium text-orange-800">{item.complianceRequirement}</p>
+                          {expandedItems[item.id] && (
+                            <div className="border-t border-gray-100 px-5 pb-4 pt-4 space-y-3">
+                              {item.complianceRequirement && (
+                                <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                                  <div className="flex items-start gap-2">
+                                    <svg className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                    </svg>
+                                    <div>
+                                      <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wide mb-1">Compliance Requirement</p>
+                                      <p className="text-xs font-medium text-orange-800">{item.complianceRequirement}</p>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            )}
+                              )}
 
-                            {/* Linked Evidence */}
-                            {item.linkedEvidence && item.linkedEvidence.length > 0 && (
-                              <div>
-                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">Linked Evidence</p>
-                                <div className="space-y-2">
-                                  {item.linkedEvidence.map((ev, i) => (
-                                    <div key={i} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                                      <div className="flex items-center gap-2">
-                                        <svg className="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                                        </svg>
-                                        <span className="text-xs font-medium text-gray-800">{ev}</span>
+                              {item.id === 'vatCalc' && vatResults && (
+                                <div>
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">VAT Breakdown</p>
+                                  <div className="grid grid-cols-3 gap-3">
+                                    {[
+                                      { label: 'Output VAT', value: vatResults.totalVatCollected ?? vatResults.outputVat },
+                                      { label: 'Input VAT', value: vatResults.totalVatPaid ?? vatResults.inputVat },
+                                      { label: 'Net VAT Payable', value: vatResults.netVatPayable },
+                                    ].map(({ label, value }) => (
+                                      <div key={label} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+                                        <p className="text-[10px] text-gray-400 mb-0.5">{label}</p>
+                                        <p className="text-sm font-bold text-gray-900">
+                                          {value != null ? `₦${Number(value).toLocaleString('en-NG', { minimumFractionDigits: 2 })}` : '—'}
+                                        </p>
                                       </div>
-                                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                      </svg>
-                                    </div>
-                                  ))}
+                                    ))}
+                                  </div>
+                                  {vatResults.vatRate != null && (
+                                    <p className="text-[10px] text-gray-400 mt-2">Standard rate applied: {vatResults.vatRate}%</p>
+                                  )}
                                 </div>
-                              </div>
-                            )}
+                              )}
 
-                            {/* Completed timestamp */}
-                            {item.completedAt && (
-                              <div className="flex items-center gap-2">
-                                <svg className="w-3.5 h-3.5 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <p className="text-xs text-teal-600 font-medium">
-                                  Completed {item.completedAt} by {item.completedBy}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                              {item.id === 'invoices' && documents.length > 0 && (
+                                <div>
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">Linked Evidence</p>
+                                  <div className="space-y-2">
+                                    {documents.map((doc) => (
+                                      <div key={doc.id} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <svg className="w-4 h-4 text-teal-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                          </svg>
+                                          <div className="min-w-0">
+                                            <p className="text-xs font-medium text-gray-800 truncate">{doc.documentName}</p>
+                                            <p className="text-[10px] text-gray-400">{doc.category} · {doc.dateUploaded ? new Date(doc.dateUploaded).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</p>
+                                          </div>
+                                        </div>
+                                        {doc.fileUrl ? (
+                                          <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="shrink-0 ml-2">
+                                            <svg className="w-4 h-4 text-gray-400 hover:text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                            </svg>
+                                          </a>
+                                        ) : (
+                                          <span className="text-[10px] text-gray-300 ml-2 shrink-0">No file</span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {item.completedAt && (
+                                <div className="flex items-center gap-2">
+                                  <svg className="w-3.5 h-3.5 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  <p className="text-xs text-teal-600 font-medium">
+                                    Completed {item.completedAt}{item.completedBy ? ` by ${item.completedBy}` : ''}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-xl border border-gray-200 px-6 py-8 text-center">
+                      <p className="text-sm text-gray-400">No checklist data available for this filing.</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Right Sidebar */}
@@ -254,24 +303,58 @@ const FilingDetail = () => {
                   <div className="space-y-5">
                     <div>
                       <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Filing Period</p>
-                      <p className="text-sm font-semibold text-gray-900">{filing.period}</p>
+                      <p className="text-sm font-semibold text-gray-900">{filing?.period || '—'}</p>
                     </div>
                     <div>
                       <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Due Date</p>
-                      <p className="text-sm font-semibold text-gray-900">{filing.dueDate}</p>
+                      <p className="text-sm font-semibold text-gray-900">{filing?.dueDate || '—'}</p>
                     </div>
-                    <div className="pt-4 border-t border-gray-100">
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Last Updated</p>
-                      <p className="text-sm font-semibold text-gray-900">{filing.lastUpdated}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">by {filing.updatedBy}</p>
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Amount</p>
+                      <p className="text-sm font-semibold text-gray-900">{fmt(filing?.amount)}</p>
                     </div>
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Status</p>
+                      <p className="text-sm font-semibold text-gray-900 capitalize">{filing?.status || '—'}</p>
+                    </div>
+
+                    {report && (
+                      <>
+                        <div className="pt-4 border-t border-gray-100">
+                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Report Type</p>
+                          <p className="text-sm font-semibold text-gray-900">{report.reportType || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Report Generated</p>
+                          <p className="text-sm font-semibold text-gray-900">{report.generatedAt ? new Date(report.generatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Format</p>
+                          <p className="text-sm font-semibold text-gray-900">{report.format || '—'}</p>
+                        </div>
+                        {report.documentUrl && (
+                          <a
+                            href={report.documentUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-2 text-sm font-semibold text-teal-600 hover:text-teal-700 transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Download Report
+                          </a>
+                        )}
+                      </>
+                    )}
                   </div>
 
                   <div className="mt-8">
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-3">Quick Actions</p>
                     <button
-                      onClick={() => navigate(`/filings/${id}/submit`)}
-                      className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors bg-teal-600 hover:bg-teal-700 text-white"
+                      onClick={() => navigate(`/filings/${id}/submit`, { state: { filing: rawFiling } })}
+                      disabled={!filing}
+                      className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       Proceed to Submit
                     </button>

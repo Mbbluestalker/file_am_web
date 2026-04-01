@@ -163,6 +163,13 @@ function Login() {
               Forgot password?
             </a>
           </div>
+
+          <p className="text-xs text-gray-500 text-center mt-5">
+            By creating an account, you agree to our{' '}
+            <a href="https://fileam.app/terms" target="_blank" rel="noreferrer" className="text-brand hover:underline font-medium">Terms of Service</a>
+            {' '}and{' '}
+            <a href="https://fileam.app/privacy" target="_blank" rel="noreferrer" className="text-brand hover:underline font-medium">Privacy Policy</a>
+          </p>
         </div>
 
         {/* Footer */}

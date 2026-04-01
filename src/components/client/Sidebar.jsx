@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import Logo from '../../assets/Logo.png';
-import Avatar from '../../assets/Avatar.png';
 
 /**
  * SIDEBAR COMPONENT
@@ -10,6 +9,15 @@ import Avatar from '../../assets/Avatar.png';
  */
 const Sidebar = ({ clientId }) => {
   const location = useLocation();
+
+  const userData = (() => {
+    try { return JSON.parse(localStorage.getItem('userData') || '{}'); }
+    catch { return {}; }
+  })();
+  const fullName = [userData.firstName, userData.lastName].filter(Boolean).join(' ') || '—';
+  const email = userData.email || '—';
+  const initials = [userData.firstName?.[0], userData.lastName?.[0]].filter(Boolean).join('').toUpperCase() || '?';
+
   const [openSections, setOpenSections] = useState({
     setup: false,
     analysis: false,
@@ -239,12 +247,16 @@ const Sidebar = ({ clientId }) => {
 
         {/* User Profile */}
         <div className="flex items-center !gap-3 !px-6 !py-4 border-t border-gray-200">
-          <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
-            <img src={Avatar} alt="Victor Asuquo" className="w-full h-full object-cover" />
-          </div>
+          {userData.logo ? (
+            <img src={userData.logo} alt={fullName} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-brand flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-sm font-semibold">{initials}</span>
+            </div>
+          )}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">Victor Asuquo</p>
-            <p className="text-xs text-gray-500 truncate">asuquo@gmail.com</p>
+            <p className="text-sm font-medium text-gray-900 truncate">{fullName}</p>
+            <p className="text-xs text-gray-500 truncate">{email}</p>
           </div>
           <button className="text-gray-400 hover:text-gray-600">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

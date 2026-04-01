@@ -64,10 +64,15 @@ export const getUnfiledObligations = async (clientId) => {
  * @param {string} clientId - The client/company ID
  * @param {number} page - Page number (default: 1)
  * @param {number} limit - Items per page (default: 20)
+ * @param {string} dateFrom - Start date filter (e.g. "2025-01-01")
+ * @param {string} dateTo - End date filter (e.g. "2025-01-31")
  */
-export const getFilings = async (clientId, page = 1, limit = 20) => {
+export const getFilings = async (clientId, page = 1, limit = 20, dateFrom = '', dateTo = '') => {
+  const params = new URLSearchParams({ page, limit });
+  if (dateFrom) params.set('dateFrom', dateFrom);
+  if (dateTo) params.set('dateTo', dateTo);
   const response = await makeRequest(
-    `/api/v${API_VERSION}/enterprise/clients/${clientId}/filings?page=${page}&limit=${limit}`,
+    `/api/v${API_VERSION}/enterprise/clients/${clientId}/filings?${params}`,
     'GET'
   );
   return response;

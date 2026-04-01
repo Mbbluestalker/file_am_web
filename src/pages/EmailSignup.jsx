@@ -108,7 +108,10 @@ function EmailSignup() {
               </form>
 
               <p className="text-xs text-gray-500 text-center mt-6">
-                By continuing, you agree to our Terms of Service and Privacy Policy
+                By creating an account, you agree to our{' '}
+                <a href="https://fileam.app/terms" target="_blank" rel="noreferrer" className="text-brand hover:underline font-medium">Terms of Service</a>
+                {' '}and{' '}
+                <a href="https://fileam.app/privacy" target="_blank" rel="noreferrer" className="text-brand hover:underline font-medium">Privacy Policy</a>
               </p>
             </>
           ) : (

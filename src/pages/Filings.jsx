@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/client/Sidebar';
@@ -10,62 +10,70 @@ const Filings = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date(2026, 1)); // February 2026
   const [filings, setFilings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isFilingsLoading, setIsFilingsLoading] = useState(false);
   const [summary, setSummary] = useState(null);
+  const initialLoadDone = useRef(false);
 
   const clients = getAllClientsFromStorage();
   const defaultClientId = clients[0]?.id || '1';
 
   useEffect(() => {
-    const fetchFilings = async () => {
+    const fetchSummary = async () => {
       if (!defaultClientId) return;
       try {
-        setIsLoading(true);
-        const [filingsResponse, summaryResponse] = await Promise.all([
-          getFilings(defaultClientId, 1, 50),
-          getFilingsSummary(defaultClientId).catch(() => null),
-        ]);
-        if (filingsResponse?.status && filingsResponse.data) {
-          const list = filingsResponse.data.data || filingsResponse.data.filings || filingsResponse.data;
-          setFilings(Array.isArray(list) ? list : []);
-        }
+        const summaryResponse = await getFilingsSummary(defaultClientId).catch(() => null);
         if (summaryResponse?.status && summaryResponse.data) {
           setSummary(summaryResponse.data);
         }
       } catch (err) {
+        console.error('Summary fetch error:', err);
+      }
+    };
+    fetchSummary();
+  }, [defaultClientId]);
+
+  useEffect(() => {
+    const fetchFilings = async () => {
+      if (!defaultClientId) return;
+      try {
+        if (!initialLoadDone.current) setIsLoading(true);
+        else setIsFilingsLoading(true);
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth();
+        const dateFrom = new Date(year, month, 1).toISOString().split('T')[0];
+        const dateTo = new Date(year, month + 1, 0).toISOString().split('T')[0];
+        const filingsResponse = await getFilings(defaultClientId, 1, 50, dateFrom, dateTo);
+        if (filingsResponse?.status && filingsResponse.data) {
+          const list = filingsResponse.data.data || filingsResponse.data.filings || filingsResponse.data;
+          setFilings(Array.isArray(list) ? list : []);
+        }
+      } catch (err) {
         console.error('Filings fetch error:', err);
       } finally {
+        initialLoadDone.current = true;
         setIsLoading(false);
+        setIsFilingsLoading(false);
       }
     };
     fetchFilings();
-  }, [defaultClientId]);
+  }, [defaultClientId, currentMonth]);
 
-  const fallbackFilings = [
-    { id: 1, taxType: 'VAT', period: 'January 2026', dueDate: '21 Feb 2026', daysRemaining: 10, status: 'ready', readiness: 98, riskLevel: 'low', lastUpdated: '2026-02-11 14:30', updatedBy: 'System' },
-    { id: 2, taxType: 'VAT', period: 'February 2026', dueDate: '21 Mar 2026', daysRemaining: 38, status: 'in-progress', readiness: 67, riskLevel: 'medium', lastUpdated: '2026-02-11 09:15', updatedBy: 'John Okeke' },
-    { id: 3, taxType: 'VAT', period: 'December 2025', dueDate: '21 Jan 2026', daysRemaining: null, status: 'submitted', readiness: 100, riskLevel: 'low', lastUpdated: '2026-01-20 16:45', updatedBy: 'System' },
-  ];
-
-  const mapApiFilings = (list) =>
-    list.map((f) => {
-      const status = f.status === 'submitted' || f.status === 'paid' ? 'submitted' : f.status === 'overdue' ? 'in-progress' : 'ready';
-      const due = f.dueDate ? new Date(f.dueDate) : null;
-      const days = due ? Math.ceil((due - new Date()) / 86400000) : null;
-      return {
-        id: f.id,
-        taxType: f.taxType || 'VAT',
-        period: f.periodLabel || f.period || '',
-        dueDate: due ? due.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
-        daysRemaining: days && days > 0 ? days : null,
-        status,
-        readiness: status === 'submitted' ? 100 : status === 'in-progress' ? 67 : 95,
-        riskLevel: status === 'in-progress' ? 'medium' : 'low',
-        lastUpdated: f.updatedAt ? new Date(f.updatedAt).toLocaleString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', '') : '—',
-        updatedBy: f.updatedBy || 'System',
-      };
-    });
-
-  const displayFilings = filings.length > 0 ? mapApiFilings(filings) : fallbackFilings;
+  const displayFilings = filings.map((f) => {
+    const status = f.status === 'submitted' || f.status === 'paid' ? 'submitted' : f.status === 'overdue' ? 'overdue' : 'in-progress';
+    const readiness = status === 'submitted' || status === 'overdue' ? 100 : 0;
+    const due = f.dueDate ? new Date(f.dueDate) : null;
+    const days = due ? Math.ceil((due - new Date()) / 86400000) : null;
+    return {
+      id: f.id,
+      taxType: f.taxType || '—',
+      period: f.periodLabel || f.period || '—',
+      dueDate: due ? due.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
+      daysRemaining: days && days > 0 ? days : null,
+      status,
+      readiness,
+      amount: f.amount ?? null,
+    };
+  });
 
   // Calendar
   const getDaysInMonth = (date) => {
@@ -130,25 +138,11 @@ const Filings = () => {
         </span>
       );
     }
-    if (filing.riskLevel === 'low') {
-      badges.push(
-        <span key="lr" className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-white text-green-700 border border-green-300">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
-          Low Risk
-        </span>
-      );
-    } else if (filing.riskLevel === 'medium') {
-      badges.push(
-        <span key="mr" className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200">
-          <span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" />
-          Medium Risk
-        </span>
-      );
-    }
     return badges;
   };
 
-  const getReadinessColor = (r) => {
+  const getReadinessColor = (status, r) => {
+    if (status === 'overdue') return 'bg-red-400';
     if (r >= 90) return 'bg-green-500';
     if (r >= 60) return 'bg-orange-400';
     return 'bg-red-400';
@@ -281,10 +275,18 @@ const Filings = () => {
                     </div>
 
                     <div className="divide-y divide-gray-100">
-                      {displayFilings.map((filing) => (
+                      {isFilingsLoading ? (
+                        <div className="flex items-center justify-center py-10">
+                          <svg className="animate-spin h-6 w-6 text-teal-600" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                        </div>
+                      ) : null}
+                      {!isFilingsLoading && displayFilings.map((filing) => (
                         <div
                           key={filing.id}
-                          onClick={() => navigate(`/filings/${filing.id}`)}
+                          onClick={() => navigate(`/filings/${filing.id}`, { state: { filing: filings.find((f) => f.id === filing.id) } })}
                           className="px-6 py-5 hover:bg-gray-50 cursor-pointer transition-colors"
                         >
                           {/* Title row */}
@@ -303,7 +305,7 @@ const Filings = () => {
                             {getStatusBadges(filing)}
                           </div>
 
-                          {/* Due Date + Readiness */}
+                          {/* Due Date + Amount */}
                           <div className="flex items-start justify-between gap-4 mb-2">
                             <div className="min-w-0">
                               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Due Date</p>
@@ -314,28 +316,29 @@ const Filings = () => {
                                 )}
                               </p>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between mb-0.5">
-                                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Readiness</p>
-                                <p className="text-xs font-semibold text-gray-800">{filing.readiness}%</p>
-                              </div>
-                              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full ${getReadinessColor(filing.readiness)}`}
-                                  style={{ width: `${filing.readiness}%` }}
-                                />
-                              </div>
+                            <div className="min-w-0 text-right">
+                              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Amount</p>
+                              <p className="text-xs font-semibold text-gray-800">
+                                {filing.amount != null ? `₦${filing.amount.toLocaleString('en-NG', { minimumFractionDigits: 2 })}` : '—'}
+                              </p>
                             </div>
                           </div>
 
-                          {/* Last updated */}
-                          <p className="text-[10px] text-gray-400">
-                            Last updated {filing.lastUpdated} by {filing.updatedBy}
-                          </p>
+                          {/* Readiness */}
+                          <div className="flex items-center justify-between mb-0.5">
+                            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Readiness</p>
+                            <p className="text-xs font-semibold text-gray-800">{filing.readiness}%</p>
+                          </div>
+                          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${getReadinessColor(filing.status, filing.readiness)}`}
+                              style={{ width: `${filing.readiness}%` }}
+                            />
+                          </div>
                         </div>
                       ))}
 
-                      {displayFilings.length === 0 && (
+                      {!isFilingsLoading && displayFilings.length === 0 && (
                         <div className="px-6 py-12 text-center">
                           <p className="text-sm text-gray-400">No filings found</p>
                         </div>

@@ -37,10 +37,15 @@ export const getEvidenceVaultStats = async (clientId) => {
  * @param {string} clientId - The client/company ID
  * @param {number} page - Page number (default: 1)
  * @param {number} limit - Items per page (default: 20)
+ * @param {string} dateFrom - Start date filter (e.g. "2026-01-01")
+ * @param {string} dateTo - End date filter (e.g. "2026-01-31")
  */
-export const getEvidenceVaultDocuments = async (clientId, page = 1, limit = 20) => {
+export const getEvidenceVaultDocuments = async (clientId, page = 1, limit = 20, dateFrom = '', dateTo = '') => {
+  const params = new URLSearchParams({ page, limit });
+  if (dateFrom) params.set('dateFrom', dateFrom);
+  if (dateTo) params.set('dateTo', dateTo);
   const response = await makeRequest(
-    `/api/v${API_VERSION}/enterprise/clients/${clientId}/evidence-vault/documents?page=${page}&limit=${limit}`,
+    `/api/v${API_VERSION}/enterprise/clients/${clientId}/evidence-vault/documents?${params}`,
     'GET'
   );
   return response;
