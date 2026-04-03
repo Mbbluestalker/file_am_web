@@ -3,9 +3,11 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/client/Sidebar';
 import { getAllClientsFromStorage } from '../utils/clientStorage';
-import { getFilingReport } from '../services/filingsApi';
+import { toast } from 'react-hot-toast';
+import { getFilingReport, submitTaxReturn } from '../services/filingsApi';
 import { getEvidenceVaultDocuments } from '../services/evidenceVaultApi';
 import { getVatComputationResults } from '../services/taxApi';
+import { ConfirmModal } from '../components/common';
 
 const FilingDetail = () => {
   const navigate = useNavigate();
@@ -22,6 +24,8 @@ const FilingDetail = () => {
   const [documents, setDocuments] = useState([]);
   const [vatResults, setVatResults] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -106,6 +110,29 @@ const FilingDetail = () => {
 
   const toggleItem = (itemId) =>
     setExpandedItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
+
+  const handleSubmit = async () => {
+    if (!rawFiling || isSubmitting) return;
+    try {
+      setIsSubmitting(true);
+      const response = await submitTaxReturn(defaultClientId, rawFiling.taxType, {
+        periodYear: rawFiling.periodYear,
+        periodMonth: rawFiling.periodMonth,
+        amount: rawFiling.amount,
+        paymentStatus: 'not_paid',
+      });
+      if (response?.status) {
+        navigate(`/filings/${id}/submit`, { state: { filing: rawFiling, submission: response.data } });
+      } else {
+        toast.error(response?.message || 'Submission failed. Please try again.');
+      }
+    } catch (err) {
+      console.error('Submit filing error:', err);
+      toast.error('Submission failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const fmt = (n) =>
     n != null ? `₦${Number(n).toLocaleString('en-NG', { minimumFractionDigits: 2 })}` : '—';
@@ -352,8 +379,8 @@ const FilingDetail = () => {
                   <div className="mt-8">
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-3">Quick Actions</p>
                     <button
-                      onClick={() => navigate(`/filings/${id}/submit`, { state: { filing: rawFiling } })}
-                      disabled={!filing}
+                      onClick={() => setShowConfirm(true)}
+                      disabled={!filing || isSubmitting}
                       className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       Proceed to Submit
@@ -365,6 +392,24 @@ const FilingDetail = () => {
           )}
         </main>
       </div>
+
+      <ConfirmModal
+        open={showConfirm}
+        onClose={() => setShowConfirm(false)}
+        onConfirm={() => { setShowConfirm(false); handleSubmit(); }}
+        title="Confirm Submission"
+        message={
+          <>
+            <p>
+              You are about to submit a <span className="font-semibold text-gray-700">{rawFiling?.taxType}</span> return for <span className="font-semibold text-gray-700">{rawFiling?.periodLabel}</span> with an amount of <span className="font-semibold text-gray-700">{filing?.amount != null ? `₦${filing.amount.toLocaleString('en-NG', { minimumFractionDigits: 2 })}` : '—'}</span>.
+            </p>
+            <p className="text-xs text-gray-400 mt-2">This action cannot be undone.</p>
+          </>
+        }
+        confirmLabel={isSubmitting ? 'Submitting...' : 'Yes, Submit'}
+        isLoading={isSubmitting}
+        variant="warning"
+      />
     </div>
   );
 };

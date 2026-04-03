@@ -1,10 +1,8 @@
 import { useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { toast } from 'react-hot-toast';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/client/Sidebar';
 import { getAllClientsFromStorage } from '../utils/clientStorage';
-import { createFiling } from '../services/filingsApi';
 
 const SubmitVATReturn = () => {
   const navigate = useNavigate();
@@ -18,7 +16,6 @@ const SubmitVATReturn = () => {
 
   const [authorizations, setAuthorizations] = useState({ client: false, consultant: false });
   const [showWhatHappens, setShowWhatHappens] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const filing = rawFiling
     ? {
@@ -60,28 +57,9 @@ const SubmitVATReturn = () => {
 
   const canSubmit = authorizations.client && authorizations.consultant;
 
-  const handleSubmit = async () => {
-    if (!filing || !canSubmit || isSubmitting) return;
-    try {
-      setIsSubmitting(true);
-      const response = await createFiling(defaultClientId, {
-        taxType: filing.taxType,
-        periodYear: filing.periodYear,
-        periodMonth: filing.periodMonth,
-        amount: rawFiling.amount,
-        paymentStatus: 'not_paid',
-      });
-      if (response?.status) {
-        navigate(`/filings/${id}/confirmation`, { state: { filing: rawFiling } });
-      } else {
-        toast.error(response?.message || 'Submission failed. Please try again.');
-      }
-    } catch (err) {
-      console.error('Submit filing error:', err);
-      toast.error('Submission failed. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleSubmit = () => {
+    if (!canSubmit) return;
+    navigate(`/filings/${id}/confirmation`, { state: { filing: rawFiling } });
   };
 
   const fmt = (n) =>
@@ -239,20 +217,14 @@ const SubmitVATReturn = () => {
                   </button>
                   <button
                     onClick={handleSubmit}
-                    disabled={!canSubmit || isSubmitting}
-                    className={`flex items-center gap-2 px-8 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                      canSubmit && !isSubmitting
+                    disabled={!canSubmit}
+                    className={`px-8 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                      canSubmit
                         ? 'bg-teal-600 hover:bg-teal-700 text-white'
                         : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                     }`}
                   >
-                    {isSubmitting && (
-                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                    )}
-                    {isSubmitting ? 'Submitting...' : 'Submit Return to FIRS'}
+                    Submit Return to FIRS
                   </button>
                 </div>
               </div>

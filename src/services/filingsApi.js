@@ -94,6 +94,23 @@ export const createFiling = async (clientId, filingData) => {
 };
 
 /**
+ * SUBMIT TAX RETURN
+ * Submit a return for a specific tax type (VAT, WHT, CIT, PAYE)
+ * @param {string} clientId - The client/company ID
+ * @param {string} taxType - Tax type (VAT, WHT, CIT, PAYE)
+ * @param {Object} data - { periodYear, periodMonth, amount, paymentStatus, documentUrl }
+ */
+export const submitTaxReturn = async (clientId, taxType, data) => {
+  const type = taxType.toLowerCase();
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/clients/${clientId}/filings/${type}/submit-return`,
+    'POST',
+    data
+  );
+  return response;
+};
+
+/**
  * GET FILING REPORT
  * Fetch detailed report for a specific filing
  * @param {string} clientId - The client/company ID
