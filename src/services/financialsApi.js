@@ -225,6 +225,45 @@ export const createInvoice = async (clientId, invoiceData) => {
   return response;
 };
 
+/**
+ * GET SINGLE INVOICE
+ * @param {string} clientId
+ * @param {string} invoiceId
+ */
+export const getInvoiceById = async (clientId, invoiceId) => {
+  return makeRequest(
+    `/api/v${API_VERSION}/enterprise/clients/${clientId}/financials/invoices/${invoiceId}`,
+    'GET'
+  );
+};
+
+/**
+ * UPDATE INVOICE
+ * @param {string} clientId
+ * @param {string} invoiceId
+ * @param {Object} data
+ */
+export const updateInvoice = async (clientId, invoiceId, data) => {
+  return makeRequest(
+    `/api/v${API_VERSION}/enterprise/clients/${clientId}/financials/invoices/${invoiceId}`,
+    'PUT',
+    data
+  );
+};
+
+/**
+ * MARK INVOICE AS PAID
+ * @param {string} clientId
+ * @param {string} invoiceId
+ */
+export const markInvoicePaid = async (clientId, invoiceId) => {
+  return makeRequest(
+    `/api/v${API_VERSION}/enterprise/clients/${clientId}/financials/invoices/${invoiceId}/mark-paid`,
+    'PATCH',
+    {}
+  );
+};
+
 // ============================================
 // TRANSACTIONS
 // ============================================

@@ -1,22 +1,27 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import Header from '../components/layout/Header';
-import Sidebar from '../components/client/Sidebar';
-import { getAllClientsFromStorage } from '../utils/clientStorage';
 import { toast } from 'react-hot-toast';
+import { PageShell, LoadingSpinner, ConfirmModal } from '../components/common';
+import FilingChecklist from '../components/filings/FilingChecklist';
+import FilingSummaryPanel from '../components/filings/FilingSummaryPanel';
+import { getAllClientsFromStorage } from '../utils/clientStorage';
+import { formatCurrency } from '../utils/format';
 import { getFilingReport, submitTaxReturn } from '../services/filingsApi';
 import { getEvidenceVaultDocuments } from '../services/evidenceVaultApi';
 import { getVatComputationResults } from '../services/taxApi';
-import { ConfirmModal } from '../components/common';
+
+const FALLBACK_CHECKLIST = [
+  { id: 'invoices', title: 'All invoices uploaded and verified', subtitle: 'Upload and review all sales and purchase invoices for the filing period', status: 'complete', complianceRequirement: 'VATA Section 10 - All VAT invoices must be properly documented', completedAt: '2026-02-11 14:30', completedBy: 'System' },
+  { id: 'vatCalc', title: 'VAT calculation verified', subtitle: 'Confirm all VAT amounts calculated correctly at standard rate', status: 'complete', complianceRequirement: 'VATA Section 4 - Standard rate applies to all taxable supplies', completedAt: '2026-02-11 15:00', completedBy: 'System' },
+  { id: 'inputVat', title: 'Input VAT reconciliation complete', subtitle: 'Reconcile all input VAT claims with supporting vendor invoices', status: 'pending', complianceRequirement: 'VATA Section 16 - Input tax deductibility requirements', completedAt: null, completedBy: null },
+];
 
 const FilingDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const location = useLocation();
-
   const clients = getAllClientsFromStorage();
   const defaultClientId = clients[0]?.id || '1';
-
   const rawFiling = location.state?.filing || null;
 
   const [expandedItems, setExpandedItems] = useState({ invoices: true });
@@ -43,16 +48,12 @@ const FilingDetail = () => {
           getVatComputationResults(defaultClientId),
         ]);
 
-        if (reportRes.status === 'fulfilled' && reportRes.value?.status && reportRes.value.data) {
-          setReport(reportRes.value.data);
-        }
+        if (reportRes.status === 'fulfilled' && reportRes.value?.status && reportRes.value.data) setReport(reportRes.value.data);
         if (docsRes.status === 'fulfilled' && docsRes.value?.status && docsRes.value.data) {
           const list = docsRes.value.data.data || docsRes.value.data;
           setDocuments(Array.isArray(list) ? list : []);
         }
-        if (vatRes.status === 'fulfilled' && vatRes.value?.status && vatRes.value.data) {
-          setVatResults(vatRes.value.data);
-        }
+        if (vatRes.status === 'fulfilled' && vatRes.value?.status && vatRes.value.data) setVatResults(vatRes.value.data);
       } catch (err) {
         console.error('Filing detail fetch error:', err);
       } finally {
@@ -62,54 +63,17 @@ const FilingDetail = () => {
     fetchData();
   }, [defaultClientId, id]);
 
-  const filing = rawFiling
-    ? {
-        title: `${rawFiling.taxType} Return - ${rawFiling.periodLabel || ''}`,
-        subtitle: 'Review checklist and resolve blockers before submission',
-        period: rawFiling.periodLabel || '—',
-        dueDate: rawFiling.dueDate
-          ? new Date(rawFiling.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
-          : '—',
-        amount: rawFiling.amount ?? null,
-        status: rawFiling.status || '—',
-        readiness: report?.readiness ?? 0,
-      }
-    : null;
+  const filing = rawFiling ? {
+    title: `${rawFiling.taxType} Return - ${rawFiling.periodLabel || ''}`,
+    subtitle: 'Review checklist and resolve blockers before submission',
+    period: rawFiling.periodLabel || '—',
+    dueDate: rawFiling.dueDate ? new Date(rawFiling.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '—',
+    amount: rawFiling.amount ?? null,
+    status: rawFiling.status || '—',
+    readiness: report?.readiness ?? 0,
+  } : null;
 
-  const fallbackChecklist = [
-    {
-      id: 'invoices',
-      title: 'All invoices uploaded and verified',
-      subtitle: 'Upload and review all sales and purchase invoices for the filing period',
-      status: 'complete',
-      complianceRequirement: 'VATA Section 10 - All VAT invoices must be properly documented',
-      completedAt: '2026-02-11 14:30',
-      completedBy: 'System',
-    },
-    {
-      id: 'vatCalc',
-      title: 'VAT calculation verified',
-      subtitle: 'Confirm all VAT amounts calculated correctly at standard rate',
-      status: 'complete',
-      complianceRequirement: 'VATA Section 4 - Standard rate applies to all taxable supplies',
-      completedAt: '2026-02-11 15:00',
-      completedBy: 'System',
-    },
-    {
-      id: 'inputVat',
-      title: 'Input VAT reconciliation complete',
-      subtitle: 'Reconcile all input VAT claims with supporting vendor invoices',
-      status: 'pending',
-      complianceRequirement: 'VATA Section 16 - Input tax deductibility requirements',
-      completedAt: null,
-      completedBy: null,
-    },
-  ];
-
-  const checklistItems = report?.checklist || fallbackChecklist;
-
-  const toggleItem = (itemId) =>
-    setExpandedItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
+  const checklistItems = report?.checklist || FALLBACK_CHECKLIST;
 
   const handleSubmit = async () => {
     if (!rawFiling || isSubmitting) return;
@@ -134,264 +98,62 @@ const FilingDetail = () => {
     }
   };
 
-  const fmt = (n) =>
-    n != null ? `₦${Number(n).toLocaleString('en-NG', { minimumFractionDigits: 2 })}` : '—';
-
-  const StatusIcon = ({ status }) => {
-    if (status === 'complete') {
-      return (
-        <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center shrink-0">
-          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-          </svg>
-        </div>
-      );
-    }
-    return (
-      <div className="w-6 h-6 rounded-full border-2 border-orange-400 flex items-center justify-center shrink-0">
-        <div className="w-2 h-2 rounded-full bg-orange-400" />
-      </div>
-    );
-  };
-
   return (
-    <div className="h-screen bg-white flex overflow-hidden">
-      <Sidebar clientId={defaultClientId} />
-
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header hideLogo={true} />
-
-        <main className="flex-1 overflow-y-auto bg-gray-50">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <svg className="animate-spin h-10 w-10 text-teal-600" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
+    <PageShell clientId={defaultClientId}>
+      {isLoading ? (
+        <LoadingSpinner fullHeight />
+      ) : (
+        <>
+          {/* Black header */}
+          <div className="bg-gray-900 text-white px-10 py-6">
+            <div className="flex items-center gap-4">
+              <button onClick={() => navigate('/filings')} className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center hover:bg-white/25 transition-colors shrink-0">
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <div>
+                <h1 className="text-xl font-bold">{filing?.title || '—'}</h1>
+                <p className="text-sm text-gray-400 mt-0.5">{filing?.subtitle || ''}</p>
+              </div>
             </div>
-          ) : (
-            <>
-              {/* Black header */}
-              <div className="bg-gray-900 text-white px-10 py-6">
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => navigate('/filings')}
-                    className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center hover:bg-white/25 transition-colors shrink-0"
-                  >
-                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </button>
-                  <div>
-                    <h1 className="text-xl font-bold">{filing?.title || '—'}</h1>
-                    <p className="text-sm text-gray-400 mt-0.5">{filing?.subtitle || ''}</p>
-                  </div>
-                </div>
+          </div>
+
+          <div className="flex">
+            <div className="flex-1 px-10 py-8 min-w-0">
+              <div className="flex items-center gap-3 mb-8">
+                <h2 className="text-lg font-bold text-gray-900">Readiness Score</h2>
+                <span className={`px-3 py-0.5 rounded text-sm font-bold ${(filing?.readiness ?? 0) >= 80 ? 'bg-green-100 text-green-700' : (filing?.readiness ?? 0) >= 50 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'}`}>
+                  {filing?.readiness ?? 0}%
+                </span>
               </div>
 
-              <div className="flex">
-                {/* Main Content */}
-                <div className="flex-1 px-10 py-8 min-w-0">
-                  {/* Readiness Score */}
-                  <div className="flex items-center gap-3 mb-8">
-                    <h2 className="text-lg font-bold text-gray-900">Readiness Score</h2>
-                    <span
-                      className={`px-3 py-0.5 rounded text-sm font-bold ${
-                        (filing?.readiness ?? 0) >= 80
-                          ? 'bg-green-100 text-green-700'
-                          : (filing?.readiness ?? 0) >= 50
-                          ? 'bg-orange-100 text-orange-700'
-                          : 'bg-red-100 text-red-700'
-                      }`}
-                    >
-                      {filing?.readiness ?? 0}%
-                    </span>
-                  </div>
+              <h3 className="text-base font-semibold text-gray-900 mb-4">Financial Data</h3>
 
-                  {/* Financial Data */}
-                  <h3 className="text-base font-semibold text-gray-900 mb-4">Financial Data</h3>
-
-                  {checklistItems.length > 0 ? (
-                    <div className="space-y-3">
-                      {checklistItems.map((item) => (
-                        <div key={item.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                          <button
-                            className="w-full flex items-start gap-3 px-5 py-4 text-left hover:bg-gray-50 transition-colors"
-                            onClick={() => toggleItem(item.id)}
-                          >
-                            <StatusIcon status={item.status} />
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-gray-900 text-sm">{item.title}</p>
-                              <p className="text-xs text-gray-400 mt-0.5">{item.subtitle}</p>
-                            </div>
-                            <svg
-                              className={`w-5 h-5 text-gray-400 shrink-0 transition-transform mt-0.5 ${expandedItems[item.id] ? 'rotate-90' : ''}`}
-                              fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </button>
-
-                          {expandedItems[item.id] && (
-                            <div className="border-t border-gray-100 px-5 pb-4 pt-4 space-y-3">
-                              {item.complianceRequirement && (
-                                <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-                                  <div className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                                    </svg>
-                                    <div>
-                                      <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wide mb-1">Compliance Requirement</p>
-                                      <p className="text-xs font-medium text-orange-800">{item.complianceRequirement}</p>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {item.id === 'vatCalc' && vatResults && (
-                                <div>
-                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">VAT Breakdown</p>
-                                  <div className="grid grid-cols-3 gap-3">
-                                    {[
-                                      { label: 'Output VAT', value: vatResults.totalVatCollected ?? vatResults.outputVat },
-                                      { label: 'Input VAT', value: vatResults.totalVatPaid ?? vatResults.inputVat },
-                                      { label: 'Net VAT Payable', value: vatResults.netVatPayable },
-                                    ].map(({ label, value }) => (
-                                      <div key={label} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
-                                        <p className="text-[10px] text-gray-400 mb-0.5">{label}</p>
-                                        <p className="text-sm font-bold text-gray-900">
-                                          {value != null ? `₦${Number(value).toLocaleString('en-NG', { minimumFractionDigits: 2 })}` : '—'}
-                                        </p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                  {vatResults.vatRate != null && (
-                                    <p className="text-[10px] text-gray-400 mt-2">Standard rate applied: {vatResults.vatRate}%</p>
-                                  )}
-                                </div>
-                              )}
-
-                              {item.id === 'invoices' && documents.length > 0 && (
-                                <div>
-                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">Linked Evidence</p>
-                                  <div className="space-y-2">
-                                    {documents.map((doc) => (
-                                      <div key={doc.id} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                          <svg className="w-4 h-4 text-teal-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                          </svg>
-                                          <div className="min-w-0">
-                                            <p className="text-xs font-medium text-gray-800 truncate">{doc.documentName}</p>
-                                            <p className="text-[10px] text-gray-400">{doc.category} · {doc.dateUploaded ? new Date(doc.dateUploaded).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</p>
-                                          </div>
-                                        </div>
-                                        {doc.fileUrl ? (
-                                          <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="shrink-0 ml-2">
-                                            <svg className="w-4 h-4 text-gray-400 hover:text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                            </svg>
-                                          </a>
-                                        ) : (
-                                          <span className="text-[10px] text-gray-300 ml-2 shrink-0">No file</span>
-                                        )}
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {item.completedAt && (
-                                <div className="flex items-center gap-2">
-                                  <svg className="w-3.5 h-3.5 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                  </svg>
-                                  <p className="text-xs text-teal-600 font-medium">
-                                    Completed {item.completedAt}{item.completedBy ? ` by ${item.completedBy}` : ''}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="bg-white rounded-xl border border-gray-200 px-6 py-8 text-center">
-                      <p className="text-sm text-gray-400">No checklist data available for this filing.</p>
-                    </div>
-                  )}
+              {checklistItems.length > 0 ? (
+                <FilingChecklist
+                  items={checklistItems}
+                  expandedItems={expandedItems}
+                  onToggleItem={(itemId) => setExpandedItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }))}
+                  vatResults={vatResults}
+                  documents={documents}
+                />
+              ) : (
+                <div className="bg-white rounded-xl border border-gray-200 px-6 py-8 text-center">
+                  <p className="text-sm text-gray-400">No checklist data available for this filing.</p>
                 </div>
+              )}
+            </div>
 
-                {/* Right Sidebar */}
-                <div className="w-72 bg-white border-l border-gray-200 px-6 py-8 shrink-0">
-                  <h3 className="text-sm font-bold text-gray-900 mb-5">Filing Summary</h3>
-
-                  <div className="space-y-5">
-                    <div>
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Filing Period</p>
-                      <p className="text-sm font-semibold text-gray-900">{filing?.period || '—'}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Due Date</p>
-                      <p className="text-sm font-semibold text-gray-900">{filing?.dueDate || '—'}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Amount</p>
-                      <p className="text-sm font-semibold text-gray-900">{fmt(filing?.amount)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Status</p>
-                      <p className="text-sm font-semibold text-gray-900 capitalize">{filing?.status || '—'}</p>
-                    </div>
-
-                    {report && (
-                      <>
-                        <div className="pt-4 border-t border-gray-100">
-                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Report Type</p>
-                          <p className="text-sm font-semibold text-gray-900">{report.reportType || '—'}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Report Generated</p>
-                          <p className="text-sm font-semibold text-gray-900">{report.generatedAt ? new Date(report.generatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Format</p>
-                          <p className="text-sm font-semibold text-gray-900">{report.format || '—'}</p>
-                        </div>
-                        {report.documentUrl && (
-                          <a
-                            href={report.documentUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex items-center gap-2 text-sm font-semibold text-teal-600 hover:text-teal-700 transition-colors"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                            Download Report
-                          </a>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  <div className="mt-8">
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-3">Quick Actions</p>
-                    <button
-                      onClick={() => setShowConfirm(true)}
-                      disabled={!filing || isSubmitting}
-                      className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      Proceed to Submit
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </main>
-      </div>
+            <FilingSummaryPanel
+              filing={filing}
+              report={report}
+              onSubmit={() => setShowConfirm(true)}
+              isSubmitting={isSubmitting}
+            />
+          </div>
+        </>
+      )}
 
       <ConfirmModal
         open={showConfirm}
@@ -401,7 +163,7 @@ const FilingDetail = () => {
         message={
           <>
             <p>
-              You are about to submit a <span className="font-semibold text-gray-700">{rawFiling?.taxType}</span> return for <span className="font-semibold text-gray-700">{rawFiling?.periodLabel}</span> with an amount of <span className="font-semibold text-gray-700">{filing?.amount != null ? `₦${filing.amount.toLocaleString('en-NG', { minimumFractionDigits: 2 })}` : '—'}</span>.
+              You are about to submit a <span className="font-semibold text-gray-700">{rawFiling?.taxType}</span> return for <span className="font-semibold text-gray-700">{rawFiling?.periodLabel}</span> with an amount of <span className="font-semibold text-gray-700">{formatCurrency(filing?.amount)}</span>.
             </p>
             <p className="text-xs text-gray-400 mt-2">This action cannot be undone.</p>
           </>
@@ -410,7 +172,7 @@ const FilingDetail = () => {
         isLoading={isSubmitting}
         variant="warning"
       />
-    </div>
+    </PageShell>
   );
 };
 

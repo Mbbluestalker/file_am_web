@@ -29,6 +29,8 @@ import SetPassword from './pages/SetPassword';
 import ForgotPassword from './pages/ForgotPassword';
 import VerifyResetCode from './pages/VerifyResetCode';
 import AcceptInvitation from './pages/AcceptInvitation';
+import ProfitabilityAnalysis from './pages/ProfitabilityAnalysis';
+import BusinessHealthScore from './pages/BusinessHealthScore';
 import ProtectedRoute from './components/ProtectedRoute';
 
 /**
@@ -155,10 +157,15 @@ function App() {
           </ProtectedRoute>
         } />
 
-        {/* Client Sub-Routes - Coming Soon - Protected */}
+        {/* Profitability Analysis Routes - Protected */}
         <Route path="/clients/:clientId/profitability" element={
           <ProtectedRoute>
-            <ComingSoon />
+            <ProfitabilityAnalysis />
+          </ProtectedRoute>
+        } />
+        <Route path="/clients/:clientId/profitability/health-score" element={
+          <ProtectedRoute>
+            <BusinessHealthScore />
           </ProtectedRoute>
         } />
         <Route path="/clients/:clientId/filings" element={
