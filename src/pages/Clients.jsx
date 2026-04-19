@@ -17,121 +17,56 @@ const Clients = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Mock data for development/fallback
-  const mockClients = [
-    {
-      id: '1',
-      email: 'john@techcorp.com',
-      name: 'TechCorp Solutions Ltd',
-      registrationNumber: 'RC123456',
-      logo: null,
-      approvalStatus: 'active',
-      vatStatus: 'Registered',
-      nextFiling: 'Feb 21, 2026',
-      vatRequired: true,
-    },
-    {
-      id: '2',
-      email: 'sarah@greenventures.com',
-      name: 'Green Ventures Nigeria',
-      registrationNumber: 'RC789012',
-      logo: null,
-      approvalStatus: 'pending',
-      vatStatus: 'Not Registered',
-      nextFiling: 'Mar 15, 2026',
-      vatRequired: false,
-    },
-    {
-      id: '3',
-      email: 'info@blueocean.ng',
-      name: 'Blue Ocean Trading Co.',
-      registrationNumber: 'RC345678',
-      logo: null,
-      approvalStatus: 'active',
-      vatStatus: 'Registered',
-      nextFiling: 'Feb 28, 2026',
-      vatRequired: true,
-    },
-  ];
+  const transformClient = (client) => ({
+    id: client.id,
+    email: client.email,
+    name: client.businessName,
+    registrationNumber: client.rcNumber || 'N/A',
+    logo: null,
+    approvalStatus: client.status === 'Pending Invitation' ? 'pending' : 'active',
+    vatStatus: client.vatStatus || 'N/A',
+    nextFilingDate: typeof client.nextFiling === 'string'
+      ? client.nextFiling
+      : client.nextFiling?.dueDate || null,
+    nextFilingTaxType: typeof client.nextFiling === 'object' ? client.nextFiling?.taxType ?? null : null,
+  });
 
-  // Fetch clients from API
+  const loadClients = async () => {
+    const response = await getClients();
+    if (response.status && response.data) {
+      const transformed = response.data.map(transformClient);
+      setClients(transformed);
+      localStorage.setItem('clientsData', JSON.stringify(transformed));
+      return true;
+    }
+    return false;
+  };
+
   useEffect(() => {
     const fetchClients = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        const response = await getClients();
-
-        if (response.status && response.data) {
-          // Transform API data to match ClientCard component props
-          const transformedClients = response.data.map((client) => ({
-            // Use the client id for URL routing
-            id: client.id,
-            email: client.email,
-            name: client.businessName,
-            registrationNumber: client.rcNumber || 'N/A',
-            logo: null, // API doesn't provide logo
-            approvalStatus: client.status === 'Pending Invitation' ? 'pending' : 'active',
-            vatStatus: client.vatStatus || 'N/A',
-            // Handle nextFiling - it might be a string, object, or null
-            nextFiling: typeof client.nextFiling === 'string'
-              ? client.nextFiling
-              : client.nextFiling?.dueDate || null,
-            vatRequired: client.vatStatus === 'Registered',
-          }));
-          setClients(transformedClients);
-          // Store clients data in localStorage for reuse across pages
-          localStorage.setItem('clientsData', JSON.stringify(transformedClients));
-        } else {
-          setError('Failed to load clients');
-        }
+        const ok = await loadClients();
+        if (!ok) setError('Failed to load clients');
       } catch (err) {
         console.error('Error fetching clients:', err);
-
-        // Fallback to mock data in development or when API is unavailable
-        console.warn('Using mock client data as fallback');
-        setClients(mockClients);
-        localStorage.setItem('clientsData', JSON.stringify(mockClients));
-        setError(null); // Clear error since we're using fallback data
+        setError(err.message || 'Failed to load clients');
       } finally {
         setIsLoading(false);
       }
     };
-
     fetchClients();
   }, []);
 
-  // Filter clients based on search query
   const filteredClients = clients.filter((client) =>
     client.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Reload clients when modal closes (in case new client was added)
   const handleModalClose = async () => {
     setIsModalOpen(false);
-    // Refresh clients list
     try {
-      const response = await getClients();
-      if (response.status && response.data) {
-        const transformedClients = response.data.map((client) => ({
-          // Use the client id for URL routing
-          id: client.id,
-          email: client.email,
-          name: client.businessName,
-          registrationNumber: client.rcNumber || 'N/A',
-          logo: null,
-          approvalStatus: client.status === 'Pending Invitation' ? 'pending' : 'active',
-          vatStatus: client.vatStatus || 'N/A',
-          // Handle nextFiling - it might be a string, object, or null
-          nextFiling: typeof client.nextFiling === 'string'
-            ? client.nextFiling
-            : client.nextFiling?.dueDate || null,
-          vatRequired: client.vatStatus === 'Registered',
-        }));
-        setClients(transformedClients);
-        // Store clients data in localStorage for reuse across pages
-        localStorage.setItem('clientsData', JSON.stringify(transformedClients));
-      }
+      await loadClients();
     } catch (err) {
       console.error('Error refreshing clients:', err);
     }

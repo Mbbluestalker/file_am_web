@@ -71,8 +71,8 @@ const ClientDashboard = () => {
     );
   }
 
-  // Client not found state
-  if (!isLoading && !client) {
+  // Client not found only when BOTH localStorage and the API have no data
+  if (!isLoading && !client && !dashboardData) {
     return (
       <div className="h-screen bg-white flex items-center justify-center">
         <div className="text-center">
@@ -90,6 +90,10 @@ const ClientDashboard = () => {
       </div>
     );
   }
+
+  const displayName = client?.name || dashboardData?.businessName || '—';
+  const displayLogo = client?.logo || null;
+  const displayVatRequired = client?.vatRequired ?? (dashboardData?.status !== 'VAT not required');
 
   // Helper function to format currency
   const formatCurrency = (amount) => {
@@ -196,9 +200,9 @@ const ClientDashboard = () => {
 
           {/* Client Header */}
           <ClientHeader
-            name={client.name}
-            logo={client.logo}
-            vatRequired={client.vatRequired}
+            name={displayName}
+            logo={displayLogo}
+            vatRequired={displayVatRequired}
           />
 
           {/* Key Metrics */}

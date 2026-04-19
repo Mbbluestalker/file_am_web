@@ -2,15 +2,11 @@ import { useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/client/Sidebar';
-import { getAllClientsFromStorage } from '../utils/clientStorage';
 
 const SubmitVATReturn = () => {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { id, clientId } = useParams();
   const location = useLocation();
-
-  const clients = getAllClientsFromStorage();
-  const defaultClientId = clients[0]?.id || '1';
 
   const rawFiling = location.state?.filing || null;
 
@@ -59,7 +55,7 @@ const SubmitVATReturn = () => {
 
   const handleSubmit = () => {
     if (!canSubmit) return;
-    navigate(`/filings/${id}/confirmation`, { state: { filing: rawFiling } });
+    navigate(`/clients/${clientId}/filings/${id}/confirmation`, { state: { filing: rawFiling } });
   };
 
   const fmt = (n) =>
@@ -67,7 +63,7 @@ const SubmitVATReturn = () => {
 
   return (
     <div className="h-screen bg-white flex overflow-hidden">
-      <Sidebar clientId={defaultClientId} />
+      <Sidebar clientId={clientId} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header hideLogo={true} />
@@ -77,7 +73,7 @@ const SubmitVATReturn = () => {
           <div className="bg-gray-900 text-white px-10 py-6">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => navigate(`/filings/${id}`, { state: { filing: rawFiling } })}
+                onClick={() => navigate(`/clients/${clientId}/filings/${id}`, { state: { filing: rawFiling } })}
                 className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center hover:bg-white/25 transition-colors shrink-0"
               >
                 <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -207,7 +203,7 @@ const SubmitVATReturn = () => {
                 {/* Footer */}
                 <div className="flex items-center justify-between">
                   <button
-                    onClick={() => navigate(`/filings/${id}`, { state: { filing: rawFiling } })}
+                    onClick={() => navigate(`/clients/${clientId}/filings/${id}`, { state: { filing: rawFiling } })}
                     className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

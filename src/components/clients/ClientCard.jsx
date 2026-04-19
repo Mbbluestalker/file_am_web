@@ -13,7 +13,8 @@ const ClientCard = ({
   logo,
   approvalStatus,
   vatStatus,
-  nextFiling,
+  nextFilingDate,
+  nextFilingTaxType,
 }) => {
   const getStatusBadge = () => {
     if (approvalStatus === 'active') {
@@ -94,11 +95,12 @@ const ClientCard = ({
             {vatStatus}
           </span>
         </div>
-        {nextFiling && (
+        {nextFilingDate && (
           <div className="flex flex-col !gap-1 !px-2.5 !py-2 rounded bg-filing-bg">
             <span className="text-xs text-gray-400">Next Filing</span>
             <span className="text-xs font-medium text-gray-700">
-              {formatDate(typeof nextFiling === 'string' ? nextFiling : nextFiling.dueDate, { day: '2-digit', month: 'short', year: 'numeric' })}
+              {nextFilingTaxType ? `${nextFilingTaxType} — ` : ''}
+              {formatDate(nextFilingDate, { day: '2-digit', month: 'short', year: 'numeric' })}
             </span>
           </div>
         )}

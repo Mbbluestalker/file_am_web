@@ -8,7 +8,9 @@ import TextInput from '../components/common/TextInput';
 import Dropdown from '../components/common/Dropdown';
 import AlertBanner from '../components/common/AlertBanner';
 import SystemEvaluation from '../components/businessProfile/SystemEvaluation';
-import { getBusinessProfile, updateBusinessProfile, getBusinessTypes, getIndustries } from '../services/onboardingApi';
+import { getIndustries } from '../services/onboardingApi';
+import { getClientDetails } from '../services/clientApi';
+import { updateTaxConfiguration } from '../services/taxApi';
 
 /**
  * BUSINESS PROFILE PAGE
@@ -21,11 +23,10 @@ const BusinessProfile = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [businessTypes, setBusinessTypes] = useState([]);
   const [industries, setIndustries] = useState([]);
-  const [activeTab, setActiveTab] = useState('identity'); // identity, contact, tax
+  const [activeTab, setActiveTab] = useState('identity');
+  const [vatThresholdStatus, setVatThresholdStatus] = useState(null);
 
-  // Tax configuration state
   const [taxConfig, setTaxConfig] = useState({
     vat: false,
     paye: false,
@@ -34,121 +35,81 @@ const BusinessProfile = () => {
     stampDuties: false,
   });
 
-  // Form state
   const [formData, setFormData] = useState({
     businessName: '',
-    rcNumber: '',
     industry: '',
     turnoverBand: '',
     vatStatus: '',
-    businessType: '',
-    registrationDate: '',
     tin: '',
     businessAddress: '',
     phoneNumber: '',
     emailAddress: '',
     website: '',
-    subscriptionPlan: '',
-    monthlyPayment: '',
-    nextRenewalDate: '',
-    compliancePercent: 0,
     stateOfOperation: '',
     city: '',
   });
 
-  // Fetch business types and industries on mount
   useEffect(() => {
-    const fetchDropdownOptions = async () => {
+    const fetchIndustries = async () => {
       try {
-        const [typesResponse, industriesResponse] = await Promise.all([
-          getBusinessTypes(),
-          getIndustries()
-        ]);
-
-        if (typesResponse.status && typesResponse.data) {
-          setBusinessTypes(typesResponse.data);
-        }
-
-        if (industriesResponse.status && industriesResponse.data) {
-          setIndustries(industriesResponse.data);
-        }
+        const res = await getIndustries();
+        if (res.status && res.data) setIndustries(res.data);
       } catch (err) {
-        console.error('Error fetching dropdown options:', err);
+        console.error('Error fetching industries:', err);
       }
     };
-
-    fetchDropdownOptions();
+    fetchIndustries();
   }, []);
 
-  // Fetch business profile from API
   useEffect(() => {
-    const fetchBusinessProfile = async () => {
+    const fetchDetails = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        const response = await getBusinessProfile(clientId);
+        const response = await getClientDetails(clientId);
 
         if (response.status && response.data) {
-          const profile = response.data;
-          setBusinessProfile(profile);
+          const { client: clientInfo, business, taxConfiguration, vatThresholdStatus: threshold } = response.data;
+          setBusinessProfile(response.data);
 
-          // Update form data with API response
           setFormData({
-            businessName: profile.companyName || '',
-            rcNumber: profile.tin || '',
-            industry: profile.industry || '',
-            turnoverBand: determineTurnoverBand(profile.monthlyPayment),
-            vatStatus: profile.vatStatus || 'Required', // API doesn't provide this in business profile
-            businessType: profile.businessType || '',
-            registrationDate: profile.registrationDate ? profile.registrationDate.split('T')[0] : '',
-            tin: profile.tin || '',
-            businessAddress: profile.businessAddress || '',
-            stateOfOperation: profile.stateOfOperation || profile.state || '',
-            city: profile.city || '',
-            phoneNumber: profile.phoneNumber || '',
-            emailAddress: profile.emailAddress || '',
-            website: profile.website || '',
-            subscriptionPlan: profile.subscriptionPlan || '',
-            monthlyPayment: profile.monthlyPayment ? `₦${profile.monthlyPayment.toLocaleString()}` : '',
-            nextRenewalDate: profile.nextRenewalDate ? new Date(profile.nextRenewalDate).toLocaleDateString() : '',
-            compliancePercent: profile.compliancePercent || 0,
+            businessName: business?.name || '',
+            industry: business?.industry || '',
+            turnoverBand: business?.turnoverBand || '',
+            vatStatus: business?.vatStatus || '',
+            tin: business?.tin || '',
+            businessAddress: business?.streetAddress || '',
+            stateOfOperation: business?.stateOfResidence || '',
+            city: business?.city || '',
+            phoneNumber: clientInfo?.phone || '',
+            emailAddress: business?.contactEmail || clientInfo?.email || '',
+            website: business?.website || '',
           });
 
-          // Update tax configuration if available
-          if (profile.taxConfiguration) {
+          if (taxConfiguration) {
             setTaxConfig({
-              vat: profile.taxConfiguration.vat || false,
-              paye: profile.taxConfiguration.paye || false,
-              wht: profile.taxConfiguration.wht || false,
-              cit: profile.taxConfiguration.cit || false,
-              stampDuties: profile.taxConfiguration.stampDuties || false,
+              vat: taxConfiguration.vat || false,
+              paye: taxConfiguration.paye || false,
+              wht: taxConfiguration.wht || false,
+              cit: taxConfiguration.cit || false,
+              stampDuties: taxConfiguration.stampDuties || false,
             });
           }
+
+          setVatThresholdStatus(threshold || null);
         } else {
           setError('Failed to load business profile');
         }
       } catch (err) {
-        console.error('Error fetching business profile:', err);
+        console.error('Error fetching client details:', err);
         setError(err.message || 'Failed to load business profile');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchBusinessProfile();
+    fetchDetails();
   }, [clientId]);
-
-  // Helper function to determine turnover band (placeholder logic)
-  const determineTurnoverBand = (monthlyPayment) => {
-    // This is a placeholder - adjust logic based on actual business requirements
-    if (!monthlyPayment) return '₦0 - ₦10m';
-    const annual = monthlyPayment * 12;
-    if (annual < 10000000) return '₦0 - ₦10m';
-    if (annual < 24000000) return '₦10m - ₦24m';
-    if (annual < 50000000) return '₦24m - ₦50m';
-    if (annual < 100000000) return '₦50m - ₦100m';
-    return '₦100m+';
-  };
 
   // Get client data from localStorage for header
   const getClientFromStorage = () => {
@@ -208,60 +169,26 @@ const BusinessProfile = () => {
     { value: '₦100m+', label: '₦100m+' },
   ];
 
-  // System evaluation data
-  const evaluations = [
-    { label: 'VAT Obligation', status: 'Not Required' },
-    { label: 'CIT Exemptions', status: 'Not Eligible' },
-  ];
+  // System evaluation: only VAT Obligation has a backend source (via threshold status)
+  const evaluations = vatThresholdStatus
+    ? [{
+        label: 'VAT Obligation',
+        status: vatThresholdStatus.status === 'above' ? 'Required' : 'Not Required',
+      }]
+    : [];
 
-  const handleInputChange = (field) => (e) => {
-    setFormData({
-      ...formData,
-      [field]: e.target.value,
-    });
-  };
-
-  // Handle save/update business profile
-  const handleSave = async () => {
+  const handleSaveTaxConfig = async () => {
     try {
       setIsSaving(true);
-
-      // Prepare data for API - map form fields back to API format
-      const updateData = {
-        companyName: formData.businessName,
-        businessType: formData.businessType,
-        industry: formData.industry,
-        registrationDate: formData.registrationDate,
-        tin: formData.tin,
-        businessAddress: formData.businessAddress,
-        stateOfOperation: formData.stateOfOperation,
-        city: formData.city,
-        phoneNumber: formData.phoneNumber,
-        emailAddress: formData.emailAddress,
-        website: formData.website,
-        logo: businessProfile?.logo || '', // Keep existing logo or empty
-        taxConfiguration: taxConfig, // Include tax configuration
-      };
-
-      // Filter out empty values - only send non-empty fields
-      const filteredData = Object.fromEntries(
-        Object.entries(updateData).filter(([_, value]) => value !== '' && value !== null && value !== undefined)
-      );
-
-      const response = await updateBusinessProfile(clientId, filteredData);
-
+      const response = await updateTaxConfiguration(clientId, taxConfig);
       if (response.status) {
-        toast.success('Business profile updated successfully!');
-        // Update the business profile state with the new data
-        if (response.data) {
-          setBusinessProfile(response.data);
-        }
+        toast.success('Tax configuration updated');
       } else {
-        toast.error(response.message || 'Failed to update business profile');
+        toast.error(response.message || 'Failed to update tax configuration');
       }
     } catch (err) {
-      console.error('Error updating business profile:', err);
-      toast.error(err.message || 'Failed to update business profile');
+      console.error('Error updating tax configuration:', err);
+      toast.error(err.message || 'Failed to update tax configuration');
     } finally {
       setIsSaving(false);
     }
@@ -281,18 +208,17 @@ const BusinessProfile = () => {
         <main className="flex-1 !px-10 !py-8 overflow-y-auto">
           {/* Client Header */}
           <ClientHeader
-            name={businessProfile?.companyName || client?.name || 'Loading...'}
-            logo={businessProfile?.logo || client?.logo}
-            vatRequired={client?.vatRequired || false}
+            name={businessProfile?.business?.name || client?.name || 'Loading...'}
+            logo={client?.logo}
+            vatRequired={vatThresholdStatus?.status === 'above'}
           />
 
-          {/* Alert Banner */}
-          <div className="mb-6">
-            <AlertBanner
-              message="This business crossed the turnover threshold for VAT requirement"
-              type="warning"
-            />
-          </div>
+          {/* Alert Banner — only when real threshold data says to */}
+          {vatThresholdStatus?.status === 'above' && vatThresholdStatus?.message && (
+            <div className="mb-6">
+              <AlertBanner message={vatThresholdStatus.message} type="warning" />
+            </div>
+          )}
 
           {/* Tabs */}
           <div className="border-b border-gray-200 mb-6">
@@ -330,110 +256,75 @@ const BusinessProfile = () => {
             </div>
           </div>
 
+          {/* Read-only notice for Identity and Contact tabs */}
+          {(activeTab === 'identity' || activeTab === 'contact') && (
+            <div className="mb-6 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 flex items-start gap-3">
+              <svg className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-xs text-gray-600">
+                This information is maintained by the client. Changes must be made by the client via their mobile app.
+              </p>
+            </div>
+          )}
+
           {/* Business Identity Tab */}
           {activeTab === 'identity' && (
             <>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                {/* Business Name */}
                 <TextInput
                   label="Business Name"
                   value={formData.businessName}
-                  onChange={handleInputChange('businessName')}
-                  placeholder="Enter business name"
+                  placeholder="—"
+                  disabled={true}
                 />
 
-                {/* RC Number / TIN */}
                 <TextInput
                   label="RC Number / TIN"
                   value={formData.tin}
-                  onChange={handleInputChange('tin')}
-                  placeholder="Enter TIN"
+                  placeholder="—"
+                  disabled={true}
                 />
 
-                {/* Industry */}
                 <Dropdown
                   label="Industry"
                   value={formData.industry}
-                  onChange={handleInputChange('industry')}
                   options={industries.map(industry => ({ value: industry, label: industry }))}
+                  disabled={true}
                 />
 
-                {/* Turnover Band */}
                 <Dropdown
                   label="Turnover Band"
                   value={formData.turnoverBand}
-                  onChange={handleInputChange('turnoverBand')}
                   options={turnoverOptions}
+                  disabled={true}
                 />
 
-                {/* VAT Status */}
                 <TextInput
                   label="VAT Status"
                   value={formData.vatStatus}
-                  onChange={handleInputChange('vatStatus')}
-                  placeholder="Required"
+                  placeholder="—"
                   disabled={true}
                 />
               </div>
 
-              {/* System Evaluation - Only on Business Identity tab */}
-              <div className="max-w-2xl">
-                <SystemEvaluation evaluations={evaluations} />
-              </div>
+              {evaluations.length > 0 && (
+                <div className="max-w-2xl">
+                  <SystemEvaluation evaluations={evaluations} />
+                </div>
+              )}
             </>
           )}
 
           {/* Contact Information Tab */}
           {activeTab === 'contact' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              {/* Registered Address */}
-              <TextInput
-                label="Registered Address"
-                value={formData.businessAddress}
-                onChange={handleInputChange('businessAddress')}
-                placeholder="Enter registered address"
-              />
-
-              {/* State of Operation */}
-              <TextInput
-                label="State of Operation"
-                value={formData.stateOfOperation}
-                onChange={handleInputChange('stateOfOperation')}
-                placeholder="Enter state"
-              />
-
-              {/* City */}
-              <TextInput
-                label="City"
-                value={formData.city}
-                onChange={handleInputChange('city')}
-                placeholder="Enter city"
-              />
-
-              {/* Email */}
-              <TextInput
-                label="Email"
-                value={formData.emailAddress}
-                onChange={handleInputChange('emailAddress')}
-                placeholder="Enter email address"
-                type="email"
-              />
-
-              {/* Phone Number */}
-              <TextInput
-                label="Phone Number"
-                value={formData.phoneNumber}
-                onChange={handleInputChange('phoneNumber')}
-                placeholder="Enter phone number"
-              />
-
-              {/* Website */}
-              <TextInput
-                label="Website"
-                value={formData.website}
-                onChange={handleInputChange('website')}
-                placeholder="Enter website URL"
-              />
+              <TextInput label="Registered Address" value={formData.businessAddress} placeholder="—" disabled={true} />
+              <TextInput label="State of Operation" value={formData.stateOfOperation} placeholder="—" disabled={true} />
+              <TextInput label="City" value={formData.city} placeholder="—" disabled={true} />
+              <TextInput label="Email" value={formData.emailAddress} placeholder="—" type="email" disabled={true} />
+              <TextInput label="Phone Number" value={formData.phoneNumber} placeholder="—" disabled={true} />
+              <TextInput label="Website" value={formData.website} placeholder="—" disabled={true} />
             </div>
           )}
 
@@ -523,6 +414,15 @@ const BusinessProfile = () => {
                   </label>
                   <p className="text-xs text-gray-500 mt-0.5">Tax on instruments</p>
                 </div>
+              </div>
+              <div className="col-span-full flex justify-end mt-2">
+                <button
+                  onClick={handleSaveTaxConfig}
+                  disabled={isSaving}
+                  className="px-5 py-2.5 bg-brand hover:bg-brand/90 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? 'Saving…' : 'Save Tax Configuration'}
+                </button>
               </div>
             </div>
           )}

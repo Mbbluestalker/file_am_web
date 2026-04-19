@@ -4,27 +4,26 @@ import { toast } from 'react-hot-toast';
 import { PageShell, LoadingSpinner, ConfirmModal } from '../components/common';
 import FilingChecklist from '../components/filings/FilingChecklist';
 import FilingSummaryPanel from '../components/filings/FilingSummaryPanel';
-import { getAllClientsFromStorage } from '../utils/clientStorage';
 import { formatCurrency } from '../utils/format';
 import { getFilingReport, submitTaxReturn } from '../services/filingsApi';
 import { getEvidenceVaultDocuments } from '../services/evidenceVaultApi';
 import { getVatComputationResults } from '../services/taxApi';
 
-const FALLBACK_CHECKLIST = [
-  { id: 'invoices', title: 'All invoices uploaded and verified', subtitle: 'Upload and review all sales and purchase invoices for the filing period', status: 'complete', complianceRequirement: 'VATA Section 10 - All VAT invoices must be properly documented', completedAt: '2026-02-11 14:30', completedBy: 'System' },
-  { id: 'vatCalc', title: 'VAT calculation verified', subtitle: 'Confirm all VAT amounts calculated correctly at standard rate', status: 'complete', complianceRequirement: 'VATA Section 4 - Standard rate applies to all taxable supplies', completedAt: '2026-02-11 15:00', completedBy: 'System' },
-  { id: 'inputVat', title: 'Input VAT reconciliation complete', subtitle: 'Reconcile all input VAT claims with supporting vendor invoices', status: 'pending', complianceRequirement: 'VATA Section 16 - Input tax deductibility requirements', completedAt: null, completedBy: null },
-];
+// Transform API completion.items → FilingChecklist shape
+const toChecklistItems = (items) =>
+  (items || []).map((it) => ({
+    id: it.key,
+    title: it.label,
+    status: it.met ? 'complete' : 'pending',
+  }));
 
 const FilingDetail = () => {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { id, clientId } = useParams();
   const location = useLocation();
-  const clients = getAllClientsFromStorage();
-  const defaultClientId = clients[0]?.id || '1';
   const rawFiling = location.state?.filing || null;
 
-  const [expandedItems, setExpandedItems] = useState({ invoices: true });
+  const [expandedItems, setExpandedItems] = useState({});
   const [report, setReport] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [vatResults, setVatResults] = useState(null);
@@ -34,7 +33,7 @@ const FilingDetail = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!defaultClientId || !id) return;
+      if (!clientId || !id) return;
       try {
         setIsLoading(true);
         const year = rawFiling?.periodYear;
@@ -43,9 +42,9 @@ const FilingDetail = () => {
         const dateTo = year && month ? new Date(year, month, 0).toISOString().split('T')[0] : '';
 
         const [reportRes, docsRes, vatRes] = await Promise.allSettled([
-          getFilingReport(defaultClientId, id),
-          getEvidenceVaultDocuments(defaultClientId, 1, 50, dateFrom, dateTo),
-          getVatComputationResults(defaultClientId),
+          getFilingReport(clientId, id),
+          getEvidenceVaultDocuments(clientId, 1, 50, dateFrom, dateTo),
+          getVatComputationResults(clientId),
         ]);
 
         if (reportRes.status === 'fulfilled' && reportRes.value?.status && reportRes.value.data) setReport(reportRes.value.data);
@@ -61,7 +60,7 @@ const FilingDetail = () => {
       }
     };
     fetchData();
-  }, [defaultClientId, id]);
+  }, [clientId, id]);
 
   const filing = rawFiling ? {
     title: `${rawFiling.taxType} Return - ${rawFiling.periodLabel || ''}`,
@@ -70,23 +69,27 @@ const FilingDetail = () => {
     dueDate: rawFiling.dueDate ? new Date(rawFiling.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '—',
     amount: rawFiling.amount ?? null,
     status: rawFiling.status || '—',
-    readiness: report?.readiness ?? 0,
+    readiness: report?.readiness ?? rawFiling.completionPercent ?? 0,
   } : null;
 
-  const checklistItems = report?.checklist || FALLBACK_CHECKLIST;
+  const checklistItems = report?.checklist
+    ? report.checklist
+    : rawFiling?.completion?.items
+    ? toChecklistItems(rawFiling.completion.items)
+    : [];
 
   const handleSubmit = async () => {
     if (!rawFiling || isSubmitting) return;
     try {
       setIsSubmitting(true);
-      const response = await submitTaxReturn(defaultClientId, rawFiling.taxType, {
+      const response = await submitTaxReturn(clientId, rawFiling.taxType, {
         periodYear: rawFiling.periodYear,
         periodMonth: rawFiling.periodMonth,
         amount: rawFiling.amount,
         paymentStatus: 'not_paid',
       });
       if (response?.status) {
-        navigate(`/filings/${id}/submit`, { state: { filing: rawFiling, submission: response.data } });
+        navigate(`/clients/${clientId}/filings/${id}/submit`, { state: { filing: rawFiling, submission: response.data } });
       } else {
         toast.error(response?.message || 'Submission failed. Please try again.');
       }
@@ -99,7 +102,7 @@ const FilingDetail = () => {
   };
 
   return (
-    <PageShell clientId={defaultClientId}>
+    <PageShell clientId={clientId}>
       {isLoading ? (
         <LoadingSpinner fullHeight />
       ) : (
@@ -107,7 +110,7 @@ const FilingDetail = () => {
           {/* Black header */}
           <div className="bg-gray-900 text-white px-10 py-6">
             <div className="flex items-center gap-4">
-              <button onClick={() => navigate('/filings')} className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center hover:bg-white/25 transition-colors shrink-0">
+              <button onClick={() => navigate(`/clients/${clientId}/filings`)} className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center hover:bg-white/25 transition-colors shrink-0">
                 <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>

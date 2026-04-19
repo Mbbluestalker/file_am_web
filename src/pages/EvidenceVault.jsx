@@ -14,8 +14,6 @@ const CATEGORIES = [
   { id: 'whtCerts', name: 'WHT Certs', metricsKey: 'whtCerts' },
 ];
 
-const FALLBACK_STATS = { metrics: { allDocument: 0, invoice: 0, receipts: 0, vatSchedules: 0, filings: 0, whtCerts: 0 } };
-
 const DocIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -38,34 +36,48 @@ const EvidenceVault = () => {
   const [documents, setDocuments] = useState([]);
   const [stats, setStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
 
   const clients = getAllClientsFromStorage();
   const defaultClientId = clients[0]?.id || '1';
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchStats = async () => {
+      if (!defaultClientId) return;
+      try {
+        const statsRes = await getEvidenceVaultStats(defaultClientId).catch(() => null);
+        if (statsRes?.status && statsRes.data) setStats(statsRes.data);
+      } catch (err) {
+        console.error('Evidence Vault stats error:', err);
+      }
+    };
+    fetchStats();
+  }, [defaultClientId]);
+
+  useEffect(() => {
+    const fetchDocs = async () => {
       if (!defaultClientId) return;
       try {
         setIsLoading(true);
-        const [statsRes, docsRes] = await Promise.all([
-          getEvidenceVaultStats(defaultClientId).catch(() => null),
-          getEvidenceVaultDocuments(defaultClientId, 1, 50).catch(() => null),
-        ]);
-        if (statsRes?.status && statsRes.data) setStats(statsRes.data);
+        const docsRes = await getEvidenceVaultDocuments(defaultClientId, pagination.page, pagination.limit).catch(() => null);
         if (docsRes?.status && docsRes.data) {
-          const list = docsRes.data.data || docsRes.data.documents || docsRes.data;
+          const list = docsRes.data.data || docsRes.data.documents || [];
           setDocuments(Array.isArray(list) ? list : []);
+          setPagination((p) => ({
+            ...p,
+            total: docsRes.data.total ?? list.length,
+            totalPages: docsRes.data.totalPages ?? 1,
+          }));
         }
       } catch (err) {
-        console.error('Evidence Vault fetch error:', err);
+        console.error('Evidence Vault docs error:', err);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchData();
-  }, [defaultClientId]);
+    fetchDocs();
+  }, [defaultClientId, pagination.page, pagination.limit]);
 
-  const displayStats = stats || FALLBACK_STATS;
   const normalizeCat = (cat) => (cat || '').toLowerCase().replace(/\s+/g, '');
 
   const filteredDocs = documents.filter((doc) => {
@@ -94,7 +106,7 @@ const EvidenceVault = () => {
             <div className="grid grid-cols-2 gap-3 mb-8">
               {CATEGORIES.map((cat) => {
                 const isActive = selectedCategory === cat.id;
-                const count = displayStats.metrics?.[cat.metricsKey] ?? 0;
+                const count = stats?.metrics?.[cat.metricsKey] ?? 0;
                 return (
                   <button
                     key={cat.id}
@@ -148,6 +160,52 @@ const EvidenceVault = () => {
                 ))
               )}
             </div>
+
+            {/* Pagination */}
+            {pagination.total > 0 && (
+              <div className="flex items-center justify-between mt-4 px-2">
+                <div className="text-xs text-gray-500">
+                  Showing{' '}
+                  <span className="font-semibold text-gray-700">
+                    {(pagination.page - 1) * pagination.limit + 1}
+                  </span>
+                  {' to '}
+                  <span className="font-semibold text-gray-700">
+                    {Math.min(pagination.page * pagination.limit, pagination.total)}
+                  </span>
+                  {' of '}
+                  <span className="font-semibold text-gray-700">{pagination.total}</span> documents
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPagination((p) => ({ ...p, page: Math.max(1, p.page - 1) }))}
+                    disabled={pagination.page <= 1}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Previous
+                  </button>
+                  <span className="text-xs text-gray-500 px-2">
+                    Page <span className="font-semibold text-gray-700">{pagination.page}</span> of{' '}
+                    <span className="font-semibold text-gray-700">{pagination.totalPages || 1}</span>
+                  </span>
+                  <button
+                    onClick={() =>
+                      setPagination((p) => ({ ...p, page: Math.min(p.totalPages || 1, p.page + 1) }))
+                    }
+                    disabled={pagination.page >= (pagination.totalPages || 1)}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Audit-Ready Banner */}
             <div className="mt-6 bg-blue-50 border border-blue-100 rounded-xl px-5 py-4 flex items-start gap-3">

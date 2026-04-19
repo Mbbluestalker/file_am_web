@@ -1,10 +1,25 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { PageShell, PageHeader, LoadingSpinner, SearchInput, StatusBadge, EmptyState } from '../components/common';
+import { PageShell, PageHeader, LoadingSpinner, SearchInput, StatusBadge, EmptyState, ProgressBar } from '../components/common';
 import UploadInvoiceModal from '../components/modals/UploadInvoiceModal';
-import InvoiceDetailModal from '../components/modals/InvoiceDetailModal';
 import { formatCurrencyShort } from '../utils/format';
-import { getInvoices } from '../services/financialsApi';
+import { getFinancialDocuments } from '../services/financialsApi';
+
+const STATUS_LABEL = {
+  clean: 'Clean',
+  'needs-review': 'Needs Review',
+  flagged: 'Flagged',
+  pending: 'Pending',
+};
+
+const confidenceColor = (v) => {
+  if (v == null) return 'bg-gray-300';
+  if (v >= 90) return 'bg-green-500';
+  if (v >= 70) return 'bg-orange-400';
+  return 'bg-red-400';
+};
+
+const shortId = (id) => (id?.length > 8 ? `${id.substring(0, 8)}…` : id || '');
 
 const Financials = () => {
   const { clientId } = useParams();
@@ -12,86 +27,92 @@ const Financials = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [invoices, setInvoices] = useState([]);
+  const [documents, setDocuments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [detailInvoiceId, setDetailInvoiceId] = useState(null);
-  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
 
-  const getClientFromStorage = () => {
-    try { return JSON.parse(localStorage.getItem('clientsData') || '[]').find((c) => c.id === clientId); }
-    catch { return null; }
-  };
-
-  const fetchInvoices = async () => {
+  const fetchDocuments = async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const res = await getInvoices(clientId, pagination.page, pagination.limit);
+      const res = await getFinancialDocuments(clientId, pagination.page, pagination.limit);
       if (res.status && res.data) {
-        const transformed = res.data.data.map((inv) => ({
-          id: inv.id,
-          invoiceNumber: inv.invoiceNumber,
-          date: new Date(inv.dateIssued).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-          vendor: inv.clientName,
-          amount: parseFloat(inv.totalAmount),
-          status: inv.paymentStatus.toLowerCase() === 'outstanding' ? 'needs-review' : 'clean',
-          uploadMethod: '—',
-          confidence: null,
-          dueDate: inv.dueDate,
-          clientEmail: inv.clientEmail,
-          clientAddress: inv.clientAddress,
-          lineItems: inv.lineItems || [],
-          financialDocumentId: inv.financialDocumentId || null,
+        const list = res.data.data || [];
+        const transformed = list.map((doc) => ({
+          id: doc.id,
+          invoiceNumber: doc.invoiceNumber || shortId(doc.id),
+          date: doc.documentDate
+            ? new Date(doc.documentDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+            : '—',
+          vendor: doc.vendor || '—',
+          amount: doc.amount != null ? parseFloat(doc.amount) : null,
+          status: (doc.documentStatus || 'pending').toLowerCase(),
+          uploadMethod: doc.format || '—',
+          confidence: doc.confidence != null ? parseFloat(doc.confidence) : null,
+          invoiceId: doc.invoiceId || null,
         }));
-        setInvoices(transformed);
-        setPagination({ page: res.data.page, limit: res.data.limit, total: res.data.total, totalPages: res.data.totalPages });
+        setDocuments(transformed);
+        setPagination({
+          page: res.data.page || 1,
+          limit: res.data.limit || 20,
+          total: res.data.total || transformed.length,
+          totalPages: res.data.totalPages || 1,
+        });
       } else {
-        setError('Failed to load invoices');
+        setError('Failed to load documents');
       }
     } catch (err) {
-      console.error('Error fetching financial data:', err);
-      setError(err.message || 'Failed to load financial data');
+      console.error('Error fetching documents:', err);
+      setError(err.message || 'Failed to load documents');
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => { fetchInvoices(); }, [clientId, pagination.page, pagination.limit]);
+  useEffect(() => { fetchDocuments(); }, [clientId, pagination.page, pagination.limit]);
 
   const stats = {
-    total: pagination.total || invoices.length,
-    clean: invoices.filter((inv) => inv.status === 'clean').length,
-    needsReview: invoices.filter((inv) => inv.status === 'needs-review').length,
-    flagged: invoices.filter((inv) => inv.status === 'flagged').length,
+    total: pagination.total || documents.length,
+    clean: documents.filter((d) => d.status === 'clean').length,
+    needsReview: documents.filter((d) => d.status === 'needs-review').length,
+    flagged: documents.filter((d) => d.status === 'flagged').length,
   };
 
-  const filteredInvoices = invoices.filter((inv) => {
-    const matchesSearch = inv.id.toLowerCase().includes(searchQuery.toLowerCase()) || inv.vendor.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || inv.status === statusFilter;
+  const filteredDocuments = documents.filter((doc) => {
+    const q = searchQuery.toLowerCase();
+    const matchesSearch =
+      (doc.invoiceNumber || '').toLowerCase().includes(q) ||
+      (doc.vendor || '').toLowerCase().includes(q);
+    const matchesStatus = statusFilter === 'all' || doc.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const truncateId = (id) => (id?.length > 8 ? `${id.substring(0, 8)}...` : id || '');
-
-  const handleUploadComplete = (file, documentId) => {
+  const handleUploadComplete = (file, transactionResponse) => {
     setShowUploadModal(false);
-    navigate(`/clients/${clientId}/financials/processing`, { state: { documentId, fileName: file.name } });
+    navigate(`/clients/${clientId}/financials/processing`, {
+      state: {
+        fileName: file.name,
+        transactions: transactionResponse.transactions,
+        count: transactionResponse.count,
+        errors: transactionResponse.errors,
+        summary: transactionResponse.summary,
+      },
+    });
   };
 
-  const handleInvoiceClick = (invoice) => {
-    if (!invoice.financialDocumentId) return;
-    navigate(`/clients/${clientId}/financials/review/${invoice.financialDocumentId}`);
+  const handleRowClick = (doc) => {
+    navigate(`/clients/${clientId}/financials/review/${doc.id}`);
   };
 
-  if (isLoading) return <PageShell clientId={clientId}><LoadingSpinner fullHeight message="Loading invoices..." /></PageShell>;
+  if (isLoading) return <PageShell clientId={clientId}><LoadingSpinner fullHeight message="Loading documents..." /></PageShell>;
 
   if (error) {
     return (
       <PageShell clientId={clientId}>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Invoices</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Documents</h1>
             <p className="text-gray-500 mb-4">{error}</p>
             <button onClick={() => window.location.reload()} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors">Retry</button>
           </div>
@@ -146,6 +167,7 @@ const Financials = () => {
               <option value="clean">Clean</option>
               <option value="needs-review">Needs Review</option>
               <option value="flagged">Flagged</option>
+              <option value="pending">Pending</option>
             </select>
             <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -153,44 +175,103 @@ const Financials = () => {
           </div>
         </div>
 
-        {/* Invoice Table */}
+        {/* Document Table */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200">
             <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase">Invoice #</div>
             <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase">Date</div>
             <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase">Vendor</div>
-            <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase">Amount</div>
+            <div className="col-span-1 text-xs font-semibold text-gray-500 uppercase">Amount</div>
             <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase">Status</div>
-            <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase text-right">Actions</div>
+            <div className="col-span-1 text-xs font-semibold text-gray-500 uppercase">Upload Method</div>
+            <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase">Confidence</div>
           </div>
 
-          {filteredInvoices.map((invoice) => (
-            <div key={invoice.id} className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-gray-200 hover:bg-gray-50 transition-colors">
+          {filteredDocuments.map((doc) => (
+            <div
+              key={doc.id}
+              onClick={() => handleRowClick(doc)}
+              className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-colors cursor-pointer"
+            >
               <div className="col-span-2 flex items-center gap-2 text-sm text-gray-900">
-                <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
-                <span title={invoice.id}>{truncateId(invoice.id)}</span>
+                <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                </svg>
+                <span title={doc.id}>{doc.invoiceNumber}</span>
               </div>
-              <div className="col-span-2 flex items-center text-sm text-gray-700">{invoice.date}</div>
-              <div className="col-span-2 flex items-center text-sm text-gray-900">{invoice.vendor}</div>
-              <div className="col-span-2 flex items-center text-sm font-semibold text-gray-900">{formatCurrencyShort(invoice.amount)}</div>
+              <div className="col-span-2 flex items-center text-sm text-gray-700">{doc.date}</div>
+              <div className="col-span-2 flex items-center text-sm text-gray-900">{doc.vendor}</div>
+              <div className="col-span-1 flex items-center text-sm font-semibold text-gray-900">
+                {doc.amount != null ? formatCurrencyShort(doc.amount) : '—'}
+              </div>
               <div className="col-span-2 flex items-center">
-                <StatusBadge status={invoice.status} label={invoice.status === 'needs-review' ? 'Needs Review' : invoice.status === 'clean' ? 'Clean' : invoice.status} size="md" />
+                <StatusBadge status={doc.status} label={STATUS_LABEL[doc.status] || doc.status} size="md" />
               </div>
-              <div className="col-span-2 flex items-center justify-end gap-2">
-                <button onClick={() => setDetailInvoiceId(invoice.id)} className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Detail</button>
-                {invoice.financialDocumentId && (
-                  <button onClick={() => handleInvoiceClick(invoice)} className="px-3 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors">Review</button>
+              <div className="col-span-1 flex items-center text-sm text-gray-600">{doc.uploadMethod}</div>
+              <div className="col-span-2 flex items-center">
+                {doc.confidence != null ? (
+                  <div className="flex items-center gap-2 w-full">
+                    <ProgressBar value={doc.confidence} color={confidenceColor(doc.confidence)} height="h-1.5" />
+                    <span className="text-xs font-semibold text-gray-700 w-10 text-right">{Math.round(doc.confidence)}%</span>
+                  </div>
+                ) : (
+                  <span className="text-xs text-gray-400">—</span>
                 )}
               </div>
             </div>
           ))}
 
-          {filteredInvoices.length === 0 && <EmptyState message="No invoices found" />}
+          {filteredDocuments.length === 0 && <EmptyState message="No documents found" />}
         </div>
+
+        {/* Pagination */}
+        {pagination.total > 0 && (
+          <div className="flex items-center justify-between mt-4 px-2">
+            <div className="text-xs text-gray-500">
+              Showing{' '}
+              <span className="font-semibold text-gray-700">
+                {(pagination.page - 1) * pagination.limit + 1}
+              </span>
+              {' to '}
+              <span className="font-semibold text-gray-700">
+                {Math.min(pagination.page * pagination.limit, pagination.total)}
+              </span>
+              {' of '}
+              <span className="font-semibold text-gray-700">{pagination.total}</span> documents
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPagination((p) => ({ ...p, page: Math.max(1, p.page - 1) }))}
+                disabled={pagination.page <= 1}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Previous
+              </button>
+              <span className="text-xs text-gray-500 px-2">
+                Page <span className="font-semibold text-gray-700">{pagination.page}</span> of{' '}
+                <span className="font-semibold text-gray-700">{pagination.totalPages || 1}</span>
+              </span>
+              <button
+                onClick={() =>
+                  setPagination((p) => ({ ...p, page: Math.min(p.totalPages || 1, p.page + 1) }))
+                }
+                disabled={pagination.page >= (pagination.totalPages || 1)}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <UploadInvoiceModal isOpen={showUploadModal} onClose={() => setShowUploadModal(false)} onUploadComplete={handleUploadComplete} />
-      <InvoiceDetailModal open={!!detailInvoiceId} onClose={() => setDetailInvoiceId(null)} clientId={clientId} invoiceId={detailInvoiceId} onStatusChange={() => fetchInvoices()} />
     </PageShell>
   );
 };

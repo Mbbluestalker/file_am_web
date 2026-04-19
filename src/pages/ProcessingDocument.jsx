@@ -19,7 +19,8 @@ const ProcessingDocument = () => {
   const { clientId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { documentId } = location.state || {};
+  const { transactions } = location.state || {};
+  const documentId = transactions?.[0]?.id || null;
 
   const [progress, setProgress] = useState(0);
 

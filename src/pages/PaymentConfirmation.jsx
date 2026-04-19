@@ -1,14 +1,10 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/client/Sidebar';
-import { getAllClientsFromStorage } from '../utils/clientStorage';
 
 const PaymentConfirmation = () => {
   const navigate = useNavigate();
-  useParams();
-
-  const clients = getAllClientsFromStorage();
-  const defaultClientId = clients[0]?.id || '1';
+  const { clientId } = useParams();
 
   const confirmation = {
     firsReference: 'FIRS/VAT/2026/0234817',
@@ -55,7 +51,7 @@ const PaymentConfirmation = () => {
 
   return (
     <div className="h-screen bg-white flex overflow-hidden">
-      <Sidebar clientId={defaultClientId} />
+      <Sidebar clientId={clientId} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header hideLogo={true} />
@@ -246,7 +242,7 @@ const PaymentConfirmation = () => {
               {/* Footer */}
               <div className="flex items-center justify-between">
                 <button
-                  onClick={() => navigate('/filings')}
+                  onClick={() => navigate(`/clients/${clientId}/filings`)}
                   className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

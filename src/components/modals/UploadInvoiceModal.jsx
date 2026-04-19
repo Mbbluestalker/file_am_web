@@ -7,13 +7,13 @@ import toast from 'react-hot-toast';
  * UPLOAD INVOICE MODAL
  *
  * Modal for uploading invoices via drag-and-drop or file selection
- * Supports PDF and Excel files with progress tracking
+ * Supports PDF, images (JPG, PNG, etc.) with progress tracking
  */
 const UploadInvoiceModal = ({ isOpen, onClose, onUploadComplete }) => {
   const { clientId } = useParams();
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [uploadMethod, setUploadMethod] = useState('pdf'); // 'pdf' or 'excel'
+  const [uploadMethod, setUploadMethod] = useState('pdf'); // kept for internal state reset
   const [isUploading, setIsUploading] = useState(false);
 
   if (!isOpen) return null;
@@ -49,26 +49,22 @@ const UploadInvoiceModal = ({ isOpen, onClose, onUploadComplete }) => {
     try {
       setIsUploading(true);
 
-      // Prepare invoice metadata
-      const invoiceData = {
-        invoiceType: uploadMethod === 'pdf' ? 'PDF' : 'Excel',
-        uploadMethod: uploadMethod.toUpperCase(),
-      };
+      // Upload file and extract transactions via Transactions API
+      const response = await uploadInvoice(clientId, selectedFile);
 
-      // Upload invoice to API
-      const response = await uploadInvoice(clientId, selectedFile, invoiceData);
+      if (response.errors && response.errors.length > 0) {
+        toast.error(`Some transactions failed: ${response.errors.join(', ')}`);
+      }
 
-      if (response.status) {
-        toast.success('Invoice uploaded successfully!');
-
-        const documentId = response.data?.fileId || response.data?.id || null;
-        onUploadComplete(selectedFile, documentId);
+      if (response.count > 0) {
+        toast.success(response.summary || 'Invoice processed successfully!');
+        onUploadComplete(selectedFile, response);
 
         // Reset state
         setSelectedFile(null);
         setUploadMethod('pdf');
       } else {
-        throw new Error(response.message || 'Upload failed');
+        throw new Error('No transactions could be extracted from the document');
       }
     } catch (error) {
       console.error('Upload error:', error);
@@ -103,30 +99,6 @@ const UploadInvoiceModal = ({ isOpen, onClose, onUploadComplete }) => {
 
         {/* Content */}
         <div className="px-6 py-6">
-          {/* Upload Method Toggle */}
-          <div className="flex gap-2 mb-6">
-            <button
-              onClick={() => setUploadMethod('pdf')}
-              className={`flex-1 py-2.5 px-4 rounded-lg font-medium transition-colors ${
-                uploadMethod === 'pdf'
-                  ? 'bg-teal-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              PDF Upload
-            </button>
-            <button
-              onClick={() => setUploadMethod('excel')}
-              className={`flex-1 py-2.5 px-4 rounded-lg font-medium transition-colors ${
-                uploadMethod === 'excel'
-                  ? 'bg-teal-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Excel Import
-            </button>
-          </div>
-
           {/* Drag and Drop Area */}
           <div
             onDragOver={handleDragOver}
@@ -182,7 +154,7 @@ const UploadInvoiceModal = ({ isOpen, onClose, onUploadComplete }) => {
                   type="file"
                   id="file-upload"
                   className="hidden"
-                  accept={uploadMethod === 'pdf' ? '.pdf' : '.xlsx,.xls,.csv'}
+                  accept=".pdf,image/*"
                   onChange={handleFileSelect}
                 />
                 <label
@@ -192,7 +164,7 @@ const UploadInvoiceModal = ({ isOpen, onClose, onUploadComplete }) => {
                   Browse Files
                 </label>
                 <p className="text-xs text-gray-400 mt-3">
-                  {uploadMethod === 'pdf' ? 'Supported: PDF files' : 'Supported: Excel files (XLSX, XLS, CSV)'}
+                  Supported: PDF documents and images (JPG, PNG, etc.)
                 </p>
               </div>
             )}

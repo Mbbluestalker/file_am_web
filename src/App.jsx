@@ -168,34 +168,29 @@ function App() {
             <BusinessHealthScore />
           </ProtectedRoute>
         } />
-        <Route path="/clients/:clientId/filings" element={
-          <ProtectedRoute>
-            <ComingSoon />
-          </ProtectedRoute>
-        } />
         <Route path="/clients/:clientId/evidence-vault" element={
           <ProtectedRoute>
             <ComingSoon />
           </ProtectedRoute>
         } />
 
-        {/* Filings Routes - Protected */}
-        <Route path="/filings" element={
+        {/* Client-scoped Filings Routes - Protected */}
+        <Route path="/clients/:clientId/filings" element={
           <ProtectedRoute>
             <Filings />
           </ProtectedRoute>
         } />
-        <Route path="/filings/:id" element={
+        <Route path="/clients/:clientId/filings/:id" element={
           <ProtectedRoute>
             <FilingDetail />
           </ProtectedRoute>
         } />
-        <Route path="/filings/:id/submit" element={
+        <Route path="/clients/:clientId/filings/:id/submit" element={
           <ProtectedRoute>
             <SubmitVATReturn />
           </ProtectedRoute>
         } />
-        <Route path="/filings/:id/confirmation" element={
+        <Route path="/clients/:clientId/filings/:id/confirmation" element={
           <ProtectedRoute>
             <PaymentConfirmation />
           </ProtectedRoute>

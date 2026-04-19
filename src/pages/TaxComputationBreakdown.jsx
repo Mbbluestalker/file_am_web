@@ -14,50 +14,57 @@ const TABS = [
 
 const makeRows = () => [
   {
-    label: 'Net Profit Before Tax', amount: 0, type: 'normal', expandable: true,
+    label: 'Net Profit Before Tax', amount: null, type: 'normal', expandable: true,
     subItems: [
-      { label: 'Revenue', amount: 0, negative: false },
-      { label: 'Cost of Sales', amount: 0, negative: true },
-      { label: 'Other Income', amount: 0, negative: true },
+      { label: 'Revenue', amount: null, negative: false },
+      { label: 'Cost of Sales', amount: null, negative: true },
+      { label: 'Other Income', amount: null, negative: true },
     ],
   },
   {
-    label: 'Tax Adjustments', amount: 0, type: 'normal', expandable: true,
+    label: 'Tax Adjustments', amount: null, type: 'normal', expandable: true,
     subItems: [
-      { label: 'Non-Allowable Expenses', amount: 0, negative: false },
-      { label: 'Non-Allowable Depreciation', amount: 0, negative: false },
+      { label: 'Non-Allowable Expenses', amount: null, negative: false },
+      { label: 'Non-Allowable Depreciation', amount: null, negative: false },
     ],
   },
-  { label: 'Adjusted Profit', amount: 0, type: 'subtotal', expandable: false },
+  { label: 'Adjusted Profit', amount: null, type: 'subtotal', expandable: false },
   {
-    label: 'Capital Allowances', amount: 0, type: 'negative', expandable: true,
+    label: 'Capital Allowances', amount: null, type: 'negative', expandable: true,
     subItems: [
-      { label: 'Fixed Extensions – Initial Allowance (EPA)', amount: 0, negative: true },
-      { label: 'Initial Allowance', amount: 0, negative: true },
+      { label: 'Fixed Extensions – Initial Allowance (EPA)', amount: null, negative: true },
+      { label: 'Initial Allowance', amount: null, negative: true },
     ],
   },
   {
-    label: 'Loss Carry-Forward', amount: null, type: 'text', text: 'No', expandable: true,
+    label: 'Loss Carry-Forward', amount: null, type: 'text', text: '—', expandable: true,
     subItems: [
-      { label: 'Prior Year Losses', amount: 0, negative: false },
-      { label: 'Utilised This Year', amount: 0, negative: false },
+      { label: 'Prior Year Losses', amount: null, negative: false },
+      { label: 'Utilised This Year', amount: null, negative: false },
     ],
   },
-  { label: 'Final Taxable Profit', amount: 0, type: 'subtotal', expandable: false },
+  { label: 'Final Taxable Profit', amount: null, type: 'subtotal', expandable: false },
   {
-    label: 'Tax Rate Applied', amount: null, type: 'rate', rate: '0%', expandable: true,
+    label: 'Tax Rate Applied', amount: null, type: 'rate', rate: '—', expandable: true,
     subItems: [
       { label: 'Company Type', amount: null, negative: false, text: '—' },
-      { label: 'Applicable Rate', amount: null, negative: false, text: '0%' },
+      { label: 'Applicable Rate', amount: null, negative: false, text: '—' },
     ],
   },
 ];
 
+const DEFAULT_ASSUMPTIONS = {
+  vatRegistrationStatus: '—',
+  applicationCitRate: '—',
+  msmeExemptionEligible: false,
+  pioneerTaxStatus: '—',
+};
+
 const BREAKDOWN_DATA = {
-  cit:  { title: 'CIT Computation Breakdown',  rows: makeRows(), total: { label: 'Total Tax Payable (CIT)',  amount: 0 }, assumptions: { whtStatus: '—', citRate: '0%', wdasEligible: false, pioneerStatus: 'None' } },
-  vat:  { title: 'VAT Computation Breakdown',  rows: makeRows(), total: { label: 'Total Tax Payable (VAT)',  amount: 0 }, assumptions: { whtStatus: '—', citRate: '0%', wdasEligible: false, pioneerStatus: 'None' } },
-  wht:  { title: 'WHT Computation Breakdown',  rows: makeRows(), total: { label: 'Total Tax Payable (WHT)',  amount: 0 }, assumptions: { whtStatus: '—', citRate: '0%', wdasEligible: false, pioneerStatus: 'None' } },
-  firs: { title: 'PAYE Computation Breakdown', rows: makeRows(), total: { label: 'Total Tax Payable (PAYE)', amount: 0 }, assumptions: { whtStatus: '—', citRate: '0%', wdasEligible: false, pioneerStatus: 'None' } },
+  cit:  { title: 'CIT Computation Breakdown',  rows: makeRows(), total: { label: 'Total Tax Payable (CIT)',  amount: null }, assumptions: DEFAULT_ASSUMPTIONS },
+  vat:  { title: 'VAT Computation Breakdown',  rows: makeRows(), total: { label: 'Total Tax Payable (VAT)',  amount: null }, assumptions: DEFAULT_ASSUMPTIONS },
+  wht:  { title: 'WHT Computation Breakdown',  rows: makeRows(), total: { label: 'Total Tax Payable (WHT)',  amount: null }, assumptions: DEFAULT_ASSUMPTIONS },
+  firs: { title: 'PAYE Computation Breakdown', rows: makeRows(), total: { label: 'Total Tax Payable (PAYE)', amount: null }, assumptions: DEFAULT_ASSUMPTIONS },
 };
 
 const TaxComputationBreakdown = () => {
@@ -139,17 +146,17 @@ const TaxComputationBreakdown = () => {
     );
   }
 
-  const formatCurrency = (amount) => `₦${Number(amount).toLocaleString()}`;
+  const formatCurrency = (amount) => (amount == null ? '—' : `₦${Number(amount).toLocaleString()}`);
 
   const buildData = () => {
     const base = BREAKDOWN_DATA[activeTab];
     const api = apiData[activeTab];
 
     const resolvedAssumptions = assumptions ? {
-      whtStatus:     assumptions.vatRegistrationStatus ?? '—',
-      citRate:       assumptions.applicationCitRate ? `${assumptions.applicationCitRate}%` : '—',
-      wdasEligible:  assumptions.msmeExemptionEligible === 'Yes',
-      pioneerStatus: assumptions.pioneerTaxStatus ?? '—',
+      vatRegistrationStatus: assumptions.vatRegistrationStatus ?? '—',
+      applicationCitRate:    assumptions.applicationCitRate ?? null,
+      msmeExemptionEligible: assumptions.msmeExemptionEligible === 'Yes',
+      pioneerTaxStatus:      assumptions.pioneerTaxStatus ?? '—',
     } : base.assumptions;
 
     if (!api) return { ...base, assumptions: resolvedAssumptions };
@@ -163,19 +170,19 @@ const TaxComputationBreakdown = () => {
       if (api.adjustedProfit !== undefined) rows[2] = { ...rows[2], amount: api.adjustedProfit };
       if (api.adjustedProfit !== undefined) rows[5] = { ...rows[5], amount: api.adjustedProfit };
       if (api.citRate !== undefined)        rows[6] = { ...rows[6], rate: `${api.citRate}%`, subItems: [{ label: 'Company Type', amount: null, negative: false, text: '—' }, { label: 'Applicable Rate', amount: null, negative: false, text: `${api.citRate}%` }] };
-      total.amount = api.citPayable ?? 0;
+      total.amount = api.citPayable ?? null;
     }
 
     if (activeTab === 'firs') {
       rows[0] = {
-        ...rows[0], amount: api.payeAmount ?? 0,
+        ...rows[0], amount: api.payeAmount ?? null,
         subItems: [
-          { label: 'PAYE', amount: api.breakdown?.paye?.amount ?? 0, negative: false },
-          { label: 'Pension', amount: api.breakdown?.pension?.amount ?? 0, negative: false },
+          { label: 'PAYE', amount: api.breakdown?.paye?.amount ?? null, negative: false },
+          { label: 'Pension', amount: api.breakdown?.pension?.amount ?? null, negative: false },
         ],
       };
-      rows[2] = { ...rows[2], amount: api.payeAmount ?? 0 };
-      rows[5] = { ...rows[5], amount: api.payeAmount ?? 0 };
+      rows[2] = { ...rows[2], amount: api.payeAmount ?? null };
+      rows[5] = { ...rows[5], amount: api.payeAmount ?? null };
       rows[6] = {
         ...rows[6], rate: '—',
         subItems: [
@@ -184,28 +191,28 @@ const TaxComputationBreakdown = () => {
           { label: 'Note', amount: null, negative: false, text: api.note ?? '—' },
         ],
       };
-      total.amount = api.payeAmount ?? 0;
+      total.amount = api.payeAmount ?? null;
     }
 
     if (activeTab === 'wht') {
       const periodSubItems = (api.breakdown ?? []).map((b) => ({
         label: `Period ${b.period}`, amount: b.amount, negative: false,
       }));
-      rows[0] = { ...rows[0], amount: api.totalWhtCollected ?? 0, subItems: periodSubItems.length ? periodSubItems : rows[0].subItems };
-      rows[2] = { ...rows[2], amount: api.totalWhtCollected ?? 0 };
-      rows[5] = { ...rows[5], amount: api.totalWhtCollected ?? 0 };
+      rows[0] = { ...rows[0], amount: api.totalWhtCollected ?? null, subItems: periodSubItems.length ? periodSubItems : rows[0].subItems };
+      rows[2] = { ...rows[2], amount: api.totalWhtCollected ?? null };
+      rows[5] = { ...rows[5], amount: api.totalWhtCollected ?? null };
       rows[6] = { ...rows[6], rate: '—', subItems: [{ label: 'Company Type', amount: null, negative: false, text: '—' }, { label: 'Applicable Rate', amount: null, negative: false, text: '—' }] };
-      total.amount = api.totalWhtCollected ?? 0;
+      total.amount = api.totalWhtCollected ?? null;
     }
 
     if (activeTab === 'vat') {
-      if (api.totalVatCollected !== undefined)          rows[0] = { ...rows[0], amount: api.totalVatCollected, subItems: [{ label: 'Output VAT on Sales', amount: api.breakdown?.outputVatOnSales ?? 0, negative: false }, { label: 'VAT on Imported Services', amount: api.breakdown?.vatOnImportedServices ?? 0, negative: false }] };
+      if (api.totalVatCollected !== undefined)          rows[0] = { ...rows[0], amount: api.totalVatCollected, subItems: [{ label: 'Output VAT on Sales', amount: api.breakdown?.outputVatOnSales ?? null, negative: false }, { label: 'VAT on Imported Services', amount: api.breakdown?.vatOnImportedServices ?? null, negative: false }] };
       if (api.breakdown?.vatAdjustment !== undefined)   rows[1] = { ...rows[1], amount: api.breakdown.vatAdjustment };
-      rows[2] = { ...rows[2], amount: api.totalVatCollected ?? 0 };
-      if (api.totalVatPaid !== undefined)               rows[3] = { ...rows[3], amount: api.totalVatPaid, subItems: [{ label: 'Input VAT on Purchases', amount: api.breakdown?.inputVatOnPurchases ?? 0, negative: true }] };
-      rows[5] = { ...rows[5], amount: api.netVatPayable ?? 0 };
+      rows[2] = { ...rows[2], amount: api.totalVatCollected ?? null };
+      if (api.totalVatPaid !== undefined)               rows[3] = { ...rows[3], amount: api.totalVatPaid, subItems: [{ label: 'Input VAT on Purchases', amount: api.breakdown?.inputVatOnPurchases ?? null, negative: true }] };
+      rows[5] = { ...rows[5], amount: api.netVatPayable ?? null };
       rows[6] = { ...rows[6], rate: api.vatRate ? `${api.vatRate}%` : '—', subItems: [{ label: 'Filing Status', amount: null, negative: false, text: api.filingStatus ?? '—' }] };
-      total.amount = api.netVatPayable ?? 0;
+      total.amount = api.netVatPayable ?? null;
     }
 
     return { ...base, rows, total, assumptions: resolvedAssumptions };
@@ -315,7 +322,7 @@ const TaxComputationBreakdown = () => {
                           )}
                           {row.type === 'negative' && (
                             <span className="text-sm font-semibold text-red-500">
-                              ₦{Number(row.amount).toLocaleString()}
+                              {row.amount == null ? '—' : `₦${Number(row.amount).toLocaleString()}`}
                             </span>
                           )}
                           {row.expandable && (
@@ -337,7 +344,7 @@ const TaxComputationBreakdown = () => {
                             <span className="text-xs text-gray-500 pl-3">{sub.label}</span>
                           </div>
                           <span className={`text-xs font-medium ${sub.negative ? 'text-red-500' : 'text-gray-700'}`}>
-                            {sub.text ?? `₦${Number(sub.amount).toLocaleString()}`}
+                            {sub.text ?? (sub.amount == null ? '—' : `₦${Number(sub.amount).toLocaleString()}`)}
                           </span>
                         </div>
                       ))}
@@ -362,77 +369,52 @@ const TaxComputationBreakdown = () => {
               {/* Right column: Tax Assumptions + Computation Complete */}
               <div className="col-span-1 flex flex-col gap-4">
 
-                {/* Tax Assumptions card */}
+                {/* Tax Assumptions card — read-only (backend has no update endpoint yet) */}
                 <div className="bg-gray-50 rounded-xl border border-gray-200 p-6">
                   <h2 className="text-base font-bold text-gray-900 mb-5">Tax Assumptions</h2>
 
                   <div className="space-y-4">
-                    {/* WHT Registration Status */}
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1.5">
                         VAT Registration Status
                       </label>
-                      <select className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500">
-                        <option>{data.assumptions.whtStatus}</option>
-                        <option>Not Registered</option>
-                      </select>
+                      <div className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-700 bg-gray-100">
+                        {data.assumptions.vatRegistrationStatus}
+                      </div>
                     </div>
 
-                    {/* Applicable CIT Rate */}
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1.5">
                         Applicable CIT Rate (%)
                       </label>
-                      <select className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500">
-                        <option>{data.assumptions.citRate}</option>
-                        <option>20%</option>
-                        <option>30%</option>
-                      </select>
-                    </div>
-
-                    {/* WDAS Assumption Eligible */}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                        WDAS Assumption Eligible
-                      </label>
-                      <div className={`flex items-center justify-between px-3 py-2.5 border rounded-lg ${
-                        data.assumptions.wdasEligible
-                          ? 'bg-teal-50 border-teal-300'
-                          : 'bg-white border-gray-300'
-                      }`}>
-                        <span className="text-sm text-gray-700">
-                          {data.assumptions.wdasEligible ? 'Yes' : 'No'}
-                        </span>
-                        {/* Toggle */}
-                        <button className={`w-10 h-5 rounded-full relative transition-colors flex-shrink-0 ${
-                          data.assumptions.wdasEligible ? 'bg-teal-600' : 'bg-gray-300'
-                        }`}>
-                          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                            data.assumptions.wdasEligible ? 'translate-x-5' : 'translate-x-0.5'
-                          }`} />
-                        </button>
+                      <div className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-700 bg-gray-100">
+                        {data.assumptions.applicationCitRate != null ? `${data.assumptions.applicationCitRate}%` : '—'}
                       </div>
                     </div>
 
-                    {/* Pioneer Tax Status */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                        MSME Exemption Eligible
+                      </label>
+                      <div className={`flex items-center justify-between px-3 py-2.5 border rounded-lg ${
+                        data.assumptions.msmeExemptionEligible
+                          ? 'bg-teal-50 border-teal-300'
+                          : 'bg-gray-100 border-gray-200'
+                      }`}>
+                        <span className="text-sm text-gray-700">
+                          {data.assumptions.msmeExemptionEligible ? 'Yes' : 'No'}
+                        </span>
+                      </div>
+                    </div>
+
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1.5">
                         Pioneer Tax Status
                       </label>
-                      <select className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500">
-                        <option>{data.assumptions.pioneerStatus}</option>
-                        <option>Active</option>
-                        <option>Expired</option>
-                      </select>
+                      <div className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-700 bg-gray-100">
+                        {data.assumptions.pioneerTaxStatus}
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Orange warning box */}
-                  <div className="mt-5 p-4 bg-orange-50 border border-orange-100 rounded-lg">
-                    <p className="text-xs font-semibold text-orange-700 mb-1">Computation of Tax Liability</p>
-                    <p className="text-xs text-orange-600 leading-relaxed">
-                      Tax computation is based on the assumptions set above and the financial data provided.
-                    </p>
                   </div>
                 </div>
 
@@ -467,7 +449,7 @@ const TaxComputationBreakdown = () => {
                       {exporting ? 'Exporting...' : 'Export Report'}
                     </button>
                     <button
-                      onClick={() => navigate('/filings')}
+                      onClick={() => navigate(`/clients/${clientId}/filings`)}
                       className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors"
                     >
                       Proceed to Filing

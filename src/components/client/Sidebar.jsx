@@ -194,9 +194,9 @@ const Sidebar = ({ clientId }) => {
           {openSections.compliance && (
             <div className="!mt-2">
               <Link
-                to="/filings"
+                to={`/clients/${clientId}/filings`}
                 className={`flex items-center !gap-3 !px-6 !py-2.5 text-sm ${
-                  location.pathname.startsWith('/filings')
+                  location.pathname.includes('/filings')
                     ? 'bg-brand text-white !mx-4 rounded-xl'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 }`}

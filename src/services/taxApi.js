@@ -156,21 +156,6 @@ export const getTaxAssumptions = async (clientId) => {
   return response;
 };
 
-/**
- * UPDATE TAX ASSUMPTIONS
- * Update tax assumptions for a client
- * @param {string} clientId - The client/company ID
- * @param {Object} assumptions - Tax assumptions data
- */
-export const updateTaxAssumptions = async (clientId, assumptions) => {
-  const response = await makeRequest(
-    `/api/v${API_VERSION}/enterprise/clients/${clientId}/tax-computation/assumptions`,
-    'PUT',
-    assumptions
-  );
-  return response;
-};
-
 // ============================================
 // COMPUTATION REPORTS
 // ============================================
@@ -279,5 +264,4 @@ export default {
   // Chart & Assumptions
   getTaxComputationChart,
   getTaxAssumptions,
-  updateTaxAssumptions,
 };

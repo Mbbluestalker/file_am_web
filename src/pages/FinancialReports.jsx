@@ -167,6 +167,41 @@ const formatAmtFull = (amount) => {
 
 const isNeg = (amount) => amount < 0;
 
+// Map period selection → { dateFrom, dateTo } ISO date strings
+const getPeriodDateRange = (period) => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-11
+  const fmt = (d) => d.toISOString().split('T')[0];
+
+  switch (period) {
+    case 'lastMonth': {
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 0);
+      return { dateFrom: fmt(start), dateTo: fmt(end) };
+    }
+    case 'lastQuarter': {
+      const currentQ = Math.floor(month / 3);
+      const prevQ = currentQ - 1;
+      const qYear = prevQ < 0 ? year - 1 : year;
+      const qStartMonth = prevQ < 0 ? 9 : prevQ * 3;
+      const start = new Date(qYear, qStartMonth, 1);
+      const end = new Date(qYear, qStartMonth + 3, 0);
+      return { dateFrom: fmt(start), dateTo: fmt(end) };
+    }
+    case 'lastYear': {
+      const start = new Date(year - 1, 0, 1);
+      const end = new Date(year - 1, 11, 31);
+      return { dateFrom: fmt(start), dateTo: fmt(end) };
+    }
+    case 'yearToDate':
+    default: {
+      const start = new Date(year, 0, 1);
+      return { dateFrom: fmt(start), dateTo: fmt(now) };
+    }
+  }
+};
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 const TaxGptInsight = ({ text }) => (
@@ -246,9 +281,10 @@ const FinancialReports = () => {
       if (!clientId) return;
       try {
         setIsLoading(true);
+        const { dateFrom, dateTo } = getPeriodDateRange(period);
         const currentYear = new Date().getFullYear();
         const [plRes, bsRes] = await Promise.all([
-          getProfitLoss(clientId, currentYear).catch(() => null),
+          getProfitLoss(clientId, { dateFrom, dateTo }).catch(() => null),
           getBalanceSheet(clientId, currentYear).catch(() => null),
         ]);
         if (plRes?.status) setProfitLossData(plRes.data);
@@ -383,15 +419,35 @@ const FinancialReports = () => {
                   {/* Revenue */}
                   <div className="flex items-center justify-between py-3 border-b border-gray-200">
                     <span className="font-semibold text-gray-900">Revenue</span>
-                    <span className="font-semibold text-gray-900">{formatCurrency(profitLossData.revenue)}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-2.5 pl-6 border-b border-gray-100">
-                    <span className="text-sm text-gray-500">Sales Income</span>
                     <div className="flex items-center gap-4">
-                      <span className="text-sm text-gray-400 font-medium">—</span>
-                      <span className="text-xs text-gray-300 font-medium w-10 text-right">—</span>
+                      <span className="font-semibold text-gray-900">{formatCurrency(profitLossData.revenue)}</span>
+                      <span className="text-xs text-gray-400 font-medium w-10 text-right">
+                        {profitLossData.revenue > 0 ? '100%' : '—'}
+                      </span>
                     </div>
                   </div>
+                  {profitLossData.revenueByCategory && Object.keys(profitLossData.revenueByCategory).length > 0 ? (
+                    Object.entries(profitLossData.revenueByCategory).map(([category, amount]) => {
+                      const pct = profitLossData.revenue > 0 ? Math.round((amount / profitLossData.revenue) * 1000) / 10 : 0;
+                      return (
+                        <div key={category} className="flex items-center justify-between py-2.5 pl-6 border-b border-gray-100">
+                          <span className="text-sm text-gray-500">{category}</span>
+                          <div className="flex items-center gap-4">
+                            <span className="text-sm text-gray-700 font-medium">{formatCurrency(amount)}</span>
+                            <span className="text-xs text-gray-400 font-medium w-10 text-right">{pct}%</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="flex items-center justify-between py-2.5 pl-6 border-b border-gray-100">
+                      <span className="text-sm text-gray-500">Sales Income</span>
+                      <div className="flex items-center gap-4">
+                        <span className="text-sm text-gray-400 font-medium">—</span>
+                        <span className="text-xs text-gray-300 font-medium w-10 text-right">—</span>
+                      </div>
+                    </div>
+                  )}
                   {/* Cost of Sales */}
                   <div className="flex items-center justify-between py-3 border-b border-gray-200">
                     <span className="font-semibold text-gray-900">Cost of Sales</span>
@@ -414,25 +470,44 @@ const FinancialReports = () => {
                     <span className="font-semibold text-gray-900">Operating Expenses</span>
                     <div className="flex items-center gap-4">
                       <span className="font-semibold text-gray-900">{formatCurrency(profitLossData.expenses)}</span>
-                      <span className="text-xs text-gray-300 font-medium w-10 text-right">—</span>
+                      <span className="text-xs text-gray-400 font-medium w-10 text-right">
+                        {profitLossData.revenue > 0 ? `${Math.round((profitLossData.expenses / profitLossData.revenue) * 1000) / 10}%` : '—'}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between py-2.5 pl-6 border-b border-gray-100">
-                    <span className="text-sm text-gray-500">Salaries & Wages</span>
-                    <span className="text-sm text-gray-400">—</span>
-                  </div>
-                  <div className="flex items-center justify-between py-2.5 pl-6 border-b border-gray-100">
-                    <span className="text-sm text-gray-500">Office Rent</span>
-                    <span className="text-sm text-gray-400">—</span>
-                  </div>
-                  <div className="flex items-center justify-between py-2.5 pl-6 border-b border-gray-100">
-                    <span className="text-sm text-gray-500">Travel & Entertainment</span>
-                    <span className="text-sm text-gray-400">—</span>
-                  </div>
-                  <div className="flex items-center justify-between py-2.5 pl-6 border-b border-gray-100">
-                    <span className="text-sm text-gray-500">Other Expenses</span>
-                    <span className="text-sm text-gray-400">—</span>
-                  </div>
+                  {profitLossData.expensesByCategory && Object.keys(profitLossData.expensesByCategory).length > 0 ? (
+                    Object.entries(profitLossData.expensesByCategory).map(([category, amount]) => {
+                      const pct = profitLossData.expenses > 0 ? Math.round((amount / profitLossData.expenses) * 1000) / 10 : 0;
+                      return (
+                        <div key={category} className="flex items-center justify-between py-2.5 pl-6 border-b border-gray-100">
+                          <span className="text-sm text-gray-500">{category}</span>
+                          <div className="flex items-center gap-4">
+                            <span className="text-sm text-gray-700 font-medium">{formatCurrency(amount)}</span>
+                            <span className="text-xs text-gray-400 font-medium w-10 text-right">{pct}%</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between py-2.5 pl-6 border-b border-gray-100">
+                        <span className="text-sm text-gray-500">Salaries & Wages</span>
+                        <span className="text-sm text-gray-400">—</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2.5 pl-6 border-b border-gray-100">
+                        <span className="text-sm text-gray-500">Office Rent</span>
+                        <span className="text-sm text-gray-400">—</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2.5 pl-6 border-b border-gray-100">
+                        <span className="text-sm text-gray-500">Travel & Entertainment</span>
+                        <span className="text-sm text-gray-400">—</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2.5 pl-6 border-b border-gray-100">
+                        <span className="text-sm text-gray-500">Other Expenses</span>
+                        <span className="text-sm text-gray-400">—</span>
+                      </div>
+                    </>
+                  )}
                   {/* EBITDA */}
                   <div className="flex items-center justify-between py-3 border-b border-gray-200">
                     <span className="font-semibold text-gray-900">EBITDA</span>
@@ -470,7 +545,9 @@ const FinancialReports = () => {
                     <span className="font-bold text-gray-900">Net Profit After Tax</span>
                     <div className="flex items-center gap-4">
                       <span className="font-bold text-gray-900">{formatCurrency(profitLossData.netProfit)}</span>
-                      <span className="text-xs text-gray-300 font-medium w-10 text-right">—</span>
+                      <span className={`text-xs font-semibold w-10 text-right ${profitLossData.profitMarginPercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {profitLossData.profitMarginPercent !== undefined ? `${profitLossData.profitMarginPercent}%` : '—'}
+                      </span>
                     </div>
                   </div>
                 </div>

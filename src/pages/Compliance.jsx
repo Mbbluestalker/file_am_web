@@ -3,11 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Header from '../components/layout/Header';
 import { LoadingSpinner, StatusBadge } from '../components/common';
 import { formatDate } from '../utils/format';
-import { getComplianceStats, getComplianceOverview, getUpcomingDeadlines } from '../services/complianceApi';
-
-const FALLBACK_STATS = { pendingFilings: 0, paymentDues: 0, completedFilings: 0 };
-const FALLBACK_ALERTS = [];
-const FALLBACK_DEADLINES = [];
+import { getComplianceStats, getUpcomingDeadlines } from '../services/complianceApi';
 
 const AlertIcon = ({ type }) => {
   if (type === 'overdue') return <svg className="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>;
@@ -38,19 +34,19 @@ const Compliance = () => {
     const fetchAll = async () => {
       setIsLoading(true);
       try {
-        const [statsRes, overviewRes, deadlinesRes] = await Promise.all([
+        const [statsRes, deadlinesRes] = await Promise.all([
           getComplianceStats().catch(() => null),
-          getComplianceOverview().catch(() => null),
           getUpcomingDeadlines(20).catch(() => null),
         ]);
-        if (statsRes?.status && statsRes.data) setStats(statsRes.data);
-        if (overviewRes?.status && overviewRes.data) {
-          const list = overviewRes.data.alerts || overviewRes.data;
-          if (Array.isArray(list) && list.length > 0) setAlerts(list);
+        if (statsRes?.status && statsRes.data) {
+          setStats(statsRes.data);
+          // Backend doesn't yet return a dedicated alerts array — when it does,
+          // prefer statsRes.data.alerts here.
+          if (Array.isArray(statsRes.data.alerts)) setAlerts(statsRes.data.alerts);
         }
         if (deadlinesRes?.status && deadlinesRes.data) {
           const list = deadlinesRes.data.data || deadlinesRes.data.deadlines || deadlinesRes.data;
-          if (Array.isArray(list) && list.length > 0) setDeadlines(list);
+          setDeadlines(Array.isArray(list) ? list : []);
         }
       } catch (err) {
         console.error('Compliance fetch error:', err);
@@ -61,14 +57,10 @@ const Compliance = () => {
     fetchAll();
   }, []);
 
-  const displayStats = stats || FALLBACK_STATS;
-  const displayAlerts = alerts.length > 0 ? alerts : FALLBACK_ALERTS;
-  const displayDeadlines = deadlines.length > 0 ? deadlines : FALLBACK_DEADLINES;
-
   const statItems = [
-    { label: 'Pending Filings', value: displayStats.pendingFilings ?? displayStats.pending_filings ?? '—' },
-    { label: 'Payment Due', value: displayStats.paymentDues ?? displayStats.payment_dues ?? '—' },
-    { label: 'Completed Filings', value: displayStats.completedFilings ?? displayStats.completed_filings ?? '—' },
+    { label: 'Pending Filings', value: stats?.pendingFilings ?? stats?.pending_filings ?? '—' },
+    { label: 'Payment Due', value: stats?.paymentDues ?? stats?.payment_dues ?? '—' },
+    { label: 'Completed Filings', value: stats?.completedFilings ?? stats?.completed_filings ?? '—' },
   ];
 
   return (
@@ -83,7 +75,7 @@ const Compliance = () => {
             <div className="w-72 shrink-0">
               <h2 className="text-sm font-semibold text-gray-900 mb-4">Compliance Alerts</h2>
               <div className="space-y-3">
-                {displayAlerts.map((alert, i) => {
+                {alerts.map((alert, i) => {
                   const style = ALERT_STYLES[alert.type] || { bg: 'bg-gray-50', title: 'text-gray-700' };
                   return (
                     <div key={i} className={`rounded-xl px-4 py-3 ${style.bg}`}>
@@ -97,7 +89,7 @@ const Compliance = () => {
                     </div>
                   );
                 })}
-                {displayAlerts.length === 0 && <p className="text-sm text-gray-400">No alerts</p>}
+                {alerts.length === 0 && <p className="text-sm text-gray-400">No alerts</p>}
                 <div className="bg-blue-50 rounded-xl px-4 py-3">
                   <p className="text-xs text-blue-700 leading-relaxed">
                     <span className="font-semibold">Tip:</span> Set up automated reminders to stay ahead of filing deadlines.
@@ -130,17 +122,19 @@ const Compliance = () => {
                   <span className="text-xs font-medium text-gray-400">Status</span>
                   <span className="text-xs font-medium text-gray-400">Action</span>
                 </div>
-                {displayDeadlines.length === 0 ? (
+                {deadlines.length === 0 ? (
                   <div className="py-12 text-center"><p className="text-sm text-gray-400">No upcoming deadlines</p></div>
                 ) : (
-                  displayDeadlines.map((row, idx) => (
-                    <div key={row.id || idx} className={`grid grid-cols-[2fr_1fr_1.5fr_1fr_auto] gap-4 items-center px-5 py-4 ${idx < displayDeadlines.length - 1 ? 'border-b border-gray-100' : ''}`}>
-                      <span className="text-sm text-gray-700">{row.clientName || row.client_name || row.client || '—'}</span>
-                      <span className="text-sm text-gray-500">{row.taxType || row.tax_type || '—'}</span>
-                      <span className="text-sm text-gray-500">{formatDate(row.deadline || row.dueDate || row.due_date, { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                  deadlines.map((row, idx) => (
+                    <div key={row.id || idx} className={`grid grid-cols-[2fr_1fr_1.5fr_1fr_auto] gap-4 items-center px-5 py-4 ${idx < deadlines.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                      <span className="text-sm text-gray-700">{row.client || '—'}</span>
+                      <span className="text-sm text-gray-500">{row.taxType || '—'}</span>
+                      <span className="text-sm text-gray-500">{formatDate(row.deadline, { month: 'long', day: 'numeric', year: 'numeric' })}</span>
                       <StatusBadge status={(row.status || '').toLowerCase()} label={row.status} size="md" />
                       <button
-                        onClick={() => { const fid = row.id || row.filingId; if (fid) navigate(`/filings/${fid}`); }}
+                        onClick={() => {
+                          if (row.filingId && row.clientId) navigate(`/clients/${row.clientId}/filings/${row.filingId}`);
+                        }}
                         className="text-sm font-medium text-brand hover:text-brand-700 transition-colors"
                       >
                         View

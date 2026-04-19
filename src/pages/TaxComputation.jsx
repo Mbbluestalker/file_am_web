@@ -6,54 +6,118 @@ import ClientHeader from '../components/client/ClientHeader';
 import VatStatusBanner from '../components/tax/VatStatusBanner';
 import TurnoverBarChart from '../components/tax/TurnoverBarChart';
 import { getClientFromStorage } from '../utils/clientStorage';
-import { getVatComputationStatus, getVatComputationResults, getThresholdStatus, getTaxComputationChart } from '../services/taxApi';
+import {
+  getVatComputationStatus,
+  getVatComputationResults,
+  getThresholdStatus,
+  getTaxComputationChart,
+  calculateVat,
+} from '../services/taxApi';
+
+const formatCurrency = (amount) => {
+  if (amount == null) return '—';
+  if (amount >= 1000000) return `₦${(amount / 1000000).toFixed(1)}M`;
+  if (amount >= 1000) return `₦${(amount / 1000).toFixed(0)}K`;
+  return `₦${amount.toLocaleString()}`;
+};
+
+const bannerStyles = (status) => {
+  if (status === 'approaching') {
+    return { color: 'bg-yellow-900', badge: 'Approaching VAT Threshold', badgeColor: 'bg-orange-100 text-orange-700' };
+  }
+  if (status === 'above') {
+    return { color: 'bg-red-900', badge: 'Above VAT Threshold', badgeColor: 'bg-red-100 text-red-700' };
+  }
+  return { color: 'bg-green-900', badge: 'Below VAT Threshold', badgeColor: 'bg-green-100 text-green-700' };
+};
 
 const TaxComputation = () => {
   const { clientId } = useParams();
   const navigate = useNavigate();
-  const client = getClientFromStorage(clientId);
+  const storedClient = getClientFromStorage(clientId);
 
   const [loading, setLoading] = useState(true);
   const [hasVatData, setHasVatData] = useState(false);
   const [thresholdStatus, setThresholdStatus] = useState(null);
   const [computationResults, setComputationResults] = useState(null);
   const [chartData, setChartData] = useState(null);
-  const [currentYear] = useState(new Date().getFullYear());
+  const [computing, setComputing] = useState(false);
+
+  const fetchTaxData = async () => {
+    try {
+      setLoading(true);
+      const [statusRes, thresholdRes, chartRes] = await Promise.allSettled([
+        getVatComputationStatus(clientId),
+        getThresholdStatus(clientId),
+        getTaxComputationChart(clientId),
+      ]);
+
+      const vatDataExists = statusRes.status === 'fulfilled' && statusRes.value?.data?.hasVatData === true;
+      setHasVatData(vatDataExists);
+      setThresholdStatus(thresholdRes.status === 'fulfilled' ? thresholdRes.value?.data || null : null);
+      setChartData(chartRes.status === 'fulfilled' ? chartRes.value?.data || null : null);
+
+      if (vatDataExists) {
+        try {
+          const resultsRes = await getVatComputationResults(clientId);
+          setComputationResults(resultsRes?.data || null);
+        } catch (err) {
+          console.error('Computation results error:', err);
+        }
+      }
+    } catch (error) {
+      console.error('Tax computation error:', error);
+      toast.error('Failed to load tax computation data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!clientId) return;
-    const fetchTaxData = async () => {
-      try {
-        setLoading(true);
-        const statusResponse = await getVatComputationStatus(clientId);
-        const vatDataExists = statusResponse?.data?.hasVatData || false;
-        setHasVatData(vatDataExists);
-
-        const thresholdRes = await getThresholdStatus(clientId);
-        setThresholdStatus(thresholdRes?.data || null);
-
-        try {
-          const chartRes = await getTaxComputationChart(clientId);
-          setChartData(chartRes?.data || null);
-        } catch (err) { console.error('Chart data error:', err); }
-
-        if (vatDataExists) {
-          try {
-            const resultsRes = await getVatComputationResults(clientId);
-            setComputationResults(resultsRes?.data || null);
-          } catch (err) { console.error('Computation results error:', err); }
-        }
-      } catch (error) {
-        console.error('Tax computation error:', error);
-        toast.error('Failed to load tax computation data');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchTaxData();
-  }, [clientId, currentYear]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId]);
 
-  if (!client) {
+  const handleComputeVat = async () => {
+    try {
+      setComputing(true);
+      const now = new Date();
+      // Compute for the previous complete calendar month
+      const periodDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const year = periodDate.getFullYear();
+      const month = periodDate.getMonth();
+      const vatPeriod = `${year}-${String(month + 1).padStart(2, '0')}`;
+      const startDate = `${vatPeriod}-01`;
+      const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
+      const res = await calculateVat(clientId, {
+        vatType: 'standard',
+        vatPeriod,
+        startDate,
+        endDate,
+      });
+
+      if (res?.status) {
+        toast.success('VAT computed');
+        await fetchTaxData();
+      } else {
+        toast.error(res?.message || 'Failed to compute VAT');
+      }
+    } catch (err) {
+      console.error('VAT compute error:', err);
+      toast.error(err?.message || 'Failed to compute VAT');
+    } finally {
+      setComputing(false);
+    }
+  };
+
+  if (loading) {
+    return <PageShell clientId={clientId}><LoadingSpinner fullHeight message="Loading tax computation data..." /></PageShell>;
+  }
+
+  // Show "Not found" only when we have literally nothing to render
+  if (!storedClient && !thresholdStatus && !chartData) {
     return (
       <div className="h-screen bg-white flex items-center justify-center">
         <div className="text-center">
@@ -64,81 +128,64 @@ const TaxComputation = () => {
     );
   }
 
-  const formatCurrency = (amount) => {
-    if (amount >= 1000000) return `₦${(amount / 1000000).toFixed(1)}M`;
-    return `₦${(amount / 1000).toFixed(0)}K`;
-  };
-
+  const status = thresholdStatus?.status || 'below';
   const turnoverData = chartData?.chartSet || [];
-  const totalTurnover = chartData?.totalTurnOver || 0;
-  const vatThreshold = thresholdStatus?.turnoverThreshold || 25000000;
-  const thresholdPercentage = totalTurnover > 0 ? ((totalTurnover / vatThreshold) * 100).toFixed(1) : 0;
+  const totalTurnover = chartData?.totalTurnOver ?? null;
+  const vatThreshold = thresholdStatus?.turnoverThreshold ?? null;
+  const thresholdPercentage = totalTurnover != null && vatThreshold
+    ? ((totalTurnover / vatThreshold) * 100).toFixed(1)
+    : 0;
 
-  const getStatusBanner = () => {
-    const status = thresholdStatus?.status || 'below';
-    if (status === 'below') return { color: 'bg-green-900', badge: 'Below VAT Threshold', badgeColor: 'bg-green-100 text-green-700', title: 'This business is not required to charge for VAT', description: thresholdStatus?.message || `The monthly VAT liability is below the ${formatCurrency(vatThreshold)} threshold.` };
-    if (status === 'approaching') return { color: 'bg-yellow-900', badge: 'Approaching VAT Threshold', badgeColor: 'bg-orange-100 text-orange-700', title: 'VAT fulfilment may be required soon', description: thresholdStatus?.message || `The monthly VAT liability is approaching the ${formatCurrency(vatThreshold)} threshold.` };
-    return { color: 'bg-red-900', badge: 'Above VAT Threshold', badgeColor: 'bg-red-100 text-red-700', title: 'VAT fulfilment is required', description: thresholdStatus?.message || `The monthly VAT liability has exceeded the ${formatCurrency(vatThreshold)} threshold.` };
+  const styles = bannerStyles(status);
+  const banner = {
+    ...styles,
+    title: chartData?.status || thresholdStatus?.message || '—',
+    description: chartData?.turnoverStatement || thresholdStatus?.message || '',
   };
 
-  const renderEmptyState = (title, desc, extra) => (
-    <div className="flex flex-col items-center justify-center py-20">
-      <div className="w-32 h-32 mb-8">
-        <svg viewBox="0 0 200 200" fill="none" className="w-full h-full">
-          <rect x="40" y="80" width="30" height="60" rx="2" fill="#D1D5DB" />
-          <rect x="75" y="60" width="30" height="80" rx="2" fill="#9CA3AF" />
-          <rect x="110" y="50" width="30" height="90" rx="2" fill="#6B7280" />
-          <circle cx="150" cy="80" r="35" stroke="#D1D5DB" strokeWidth="8" fill="none" strokeDasharray="60 160" />
-        </svg>
-      </div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-3">{title}</h2>
-      <p className="text-gray-600 mb-8 max-w-md text-center">{desc}</p>
-      {extra}
-    </div>
-  );
-
-  if (loading) return <PageShell clientId={clientId}><LoadingSpinner fullHeight message="Loading tax computation data..." /></PageShell>;
-
-  const hasChart = chartData?.chartSet?.length > 0;
-  const banner = getStatusBanner();
+  const needsComputation = (status === 'above' || status === 'approaching') && !hasVatData;
 
   return (
     <PageShell clientId={clientId} bgColor="bg-white">
       <div className="px-10 py-8">
-        {hasChart ? (
-          <>
-            <ClientHeader name={client.name} logo={client.logo} vatRequired={client.vatRequired} />
-            <VatStatusBanner {...banner} onViewBreakdown={() => navigate(`/clients/${clientId}/tax-computation/breakdown`)} />
-            <TurnoverBarChart
-              data={turnoverData}
-              totalTurnover={totalTurnover}
-              thresholdPercentage={thresholdPercentage}
-              formatCurrency={formatCurrency}
-              computationResults={computationResults}
-            />
-          </>
-        ) : !hasVatData ? (
-          renderEmptyState(
-            'VAT Status Not Determined',
-            'To determine whether this business should charge and remit VAT, we need some basic information.',
-            <div className="flex gap-4 flex-wrap justify-center">
-              <button onClick={() => navigate(`/clients/${clientId}/business-profile`)} className="flex items-center gap-2 px-6 py-3 border border-teal-600 text-teal-600 rounded-lg font-medium hover:bg-teal-50 transition-colors">
-                Complete Business Profile
-              </button>
-              <button className="flex items-center gap-2 px-6 py-3 border border-teal-600 text-teal-600 rounded-lg font-medium hover:bg-teal-50 transition-colors">
-                Upload Invoices
-              </button>
+        <ClientHeader
+          name={storedClient?.name || chartData?.businessName || '—'}
+          logo={storedClient?.logo}
+          vatRequired={status === 'above'}
+        />
+
+        <VatStatusBanner
+          {...banner}
+          onViewBreakdown={() => navigate(`/clients/${clientId}/tax-computation/breakdown`)}
+        />
+
+        {turnoverData.length > 0 && (
+          <TurnoverBarChart
+            data={turnoverData}
+            totalTurnover={totalTurnover ?? 0}
+            thresholdPercentage={thresholdPercentage}
+            formatCurrency={formatCurrency}
+            computationResults={computationResults}
+          />
+        )}
+
+        {/* VAT computation CTA — only when above/approaching threshold and no VAT computed yet */}
+        {needsComputation && (
+          <div className="mt-6 bg-amber-50 border border-amber-200 rounded-xl p-5 flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-semibold text-amber-900 mb-1">VAT calculation not yet run</h3>
+              <p className="text-xs text-amber-700">
+                This business is at or above the VAT threshold. Run a VAT computation for the most recent completed month.
+              </p>
             </div>
-          )
-        ) : (
-          renderEmptyState(
-            'Below VAT Threshold',
-            thresholdStatus?.message || 'This business\'s monthly VAT liability is currently below the threshold.',
-            <>
-              <p className="text-gray-900 font-bold text-xl mb-2">{formatCurrency(vatThreshold)}</p>
-              <p className="text-gray-600 text-center text-sm">We will monitor the turnover and alert you if VAT registration becomes necessary.</p>
-            </>
-          )
+            <button
+              onClick={handleComputeVat}
+              disabled={computing}
+              className="shrink-0 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {computing ? 'Computing…' : 'Compute VAT'}
+            </button>
+          </div>
         )}
       </div>
     </PageShell>

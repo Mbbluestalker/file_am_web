@@ -3,7 +3,7 @@
  *
  * Reusable dropdown/select field with label
  */
-const Dropdown = ({ label, value, onChange, options, placeholder }) => {
+const Dropdown = ({ label, value, onChange, options, placeholder, disabled = false }) => {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 !mb-2">
@@ -13,7 +13,8 @@ const Dropdown = ({ label, value, onChange, options, placeholder }) => {
         <select
           value={value}
           onChange={onChange}
-          className="w-full !px-4 !py-3 border border-gray-200 rounded-xl text-gray-900 appearance-none focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent bg-white"
+          disabled={disabled}
+          className="w-full !px-4 !py-3 border border-gray-200 rounded-xl text-gray-900 appearance-none focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed"
         >
           {placeholder && <option value="">{placeholder}</option>}
           {options.map((option, index) => (

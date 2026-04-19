@@ -26,11 +26,6 @@ const DEMO = {
     { label: 'Total Fixed Costs', amount: 0, color: 'text-red-600' },
     { label: 'Net Profit', amount: 0, color: 'text-green-600' },
   ],
-  expenseBreakdown: [
-    { category: 'Salaries & Wages', total: 0 },
-    { category: 'Rent & Utilities', total: 0 },
-    { category: 'Marketing', total: 0 },
-  ],
   additionalIndicators: [
     { icon: '₦', label: 'Net Profit Margin', value: '₦0' },
     { icon: '%', label: 'Effective Tax Rate', value: '0%' },
@@ -74,7 +69,8 @@ const ProfitabilityAnalysis = () => {
     fetchData();
   }, [clientId]);
 
-  const expenseData = expenses.length > 0 ? expenses : DEMO.expenseBreakdown;
+  // expenseBreakdown has a backend endpoint — render API data only, let card show empty state
+  const expenseData = expenses;
 
   return (
     <PageShell clientId={clientId}>

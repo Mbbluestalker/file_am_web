@@ -11,7 +11,9 @@
  * - OCR extraction & vendor analysis
  */
 
-import { makeRequest, uploadFile as uploadMedia, API_VERSION } from './apiConfig';
+import { makeRequest, uploadFile as uploadMedia, API_VERSION, getAccessToken } from './apiConfig';
+
+const AI_BASE_URL = 'https://api.ai.fileam.app';
 
 // ============================================
 // FINANCIAL SUMMARY & ANALYTICS
@@ -32,13 +34,25 @@ export const getFinancialSummary = async (clientId) => {
 
 /**
  * GET PROFIT & LOSS STATEMENT
- * Get profit and loss report for a specific year
+ * Get profit and loss report by year OR by date range.
  * @param {string} clientId - The company ID
- * @param {number} year - Year for the report (e.g., 2026)
+ * @param {Object|number} options - Either a year (number) or { year, dateFrom, dateTo }
+ *   - dateFrom/dateTo: ISO date strings (YYYY-MM-DD). Takes precedence over year.
+ *   - year: Year (e.g., 2026). Used if dateFrom/dateTo are not provided.
  */
-export const getProfitLoss = async (clientId, year = new Date().getFullYear()) => {
+export const getProfitLoss = async (clientId, options = {}) => {
+  const opts = typeof options === 'number' ? { year: options } : options;
+  const { year, dateFrom, dateTo } = opts;
+
+  let query;
+  if (dateFrom && dateTo) {
+    query = `?dateFrom=${dateFrom}&dateTo=${dateTo}`;
+  } else {
+    query = `?year=${year || new Date().getFullYear()}`;
+  }
+
   const response = await makeRequest(
-    `/api/v${API_VERSION}/enterprise/clients/${clientId}/financials/profit-loss?year=${year}`,
+    `/api/v${API_VERSION}/enterprise/clients/${clientId}/financials/profit-loss${query}`,
     'GET'
   );
   return response;
@@ -164,30 +178,48 @@ export const uploadDocument = async (clientId, file, metadata = {}) => {
 
 /**
  * UPLOAD INVOICE
- * Upload invoice document
- * @param {string} clientId - The company ID
- * @param {File} file - The invoice file to upload
- * @param {Object} invoiceData - Invoice metadata (invoiceType, period, etc.)
+ * Upload invoice/receipt file and extract transactions via the Transactions API.
+ * Flow: upload file to media → get public URL → POST /api/transactions → return extracted transactions.
+ * @param {string} clientId - The company ID (used as user_id)
+ * @param {File} file - The invoice/receipt file to upload
+ * @param {Object} invoiceData - Invoice metadata (invoiceType, etc.)
+ * @returns {Promise<Object>} { transactions, count, errors, summary }
  */
-export const uploadInvoice = async (clientId, file, invoiceData = {}) => {
-  // First upload the file to get the URL
+export const uploadInvoice = async (clientId, file) => {
+  // Step 1: Upload the file to get a public URL
   const fileUploadResponse = await uploadMedia(file);
 
   if (!fileUploadResponse.status) {
     throw new Error('File upload failed');
   }
 
-  // Then create invoice record
-  const response = await makeRequest(
-    `/api/v${API_VERSION}/enterprise/clients/${clientId}/financials/documents/upload-invoice`,
-    'POST',
-    {
-      fileUrl: fileUploadResponse.data.url,
-      fileName: file.name,
-      fileSize: file.size,
-      ...invoiceData,
-    }
-  );
+  const fileUrl = fileUploadResponse.data.url;
+
+  // Determine type based on file MIME type
+  const isImage = file.type.startsWith('image/');
+  const type = isImage ? 'image' : 'document';
+
+  // Step 2: Send to Transactions API (AI service) for extraction
+  const accessToken = getAccessToken();
+  const headers = { 'Content-Type': 'application/json' };
+  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+
+  const res = await fetch(`${AI_BASE_URL}/api/transactions`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      user_id: clientId,
+      url: fileUrl,
+      type,
+    }),
+  });
+
+  const response = await res.json();
+
+  if (!res.ok) {
+    throw new Error(response.message || `API Error: ${res.status}`);
+  }
+
   return response;
 };
 

@@ -40,6 +40,20 @@ export const getClientById = async (clientId) => {
 };
 
 /**
+ * GET CLIENT DETAILS
+ * Fetch rich client detail payload including business info, tax configuration,
+ * and VAT threshold status. Used by the Business Profile page.
+ * @param {string} clientId - The company ID of the client
+ */
+export const getClientDetails = async (clientId) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/clients/${clientId}/details`,
+    'GET'
+  );
+  return response;
+};
+
+/**
  * GET CLIENT DASHBOARD
  * Fetch dashboard metrics and data for a specific client
  * @param {string} clientId - The company ID of the client
