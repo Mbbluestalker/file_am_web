@@ -1,8 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import Header from '../components/layout/Header';
 import { getAccessToken } from '../services/apiConfig';
-
-const TAXGPT_URL = 'https://api.ai.fileam.app/api/chat';
+import {
+  TAXGPT_CHAT_URL,
+  listConversations,
+  getConversationMessages,
+  submitFeedback,
+} from '../services/taxGptApi';
 
 const SUGGESTED_QUESTIONS = [
   'What is the VAT rate on professional services in Nigeria?',
@@ -15,8 +20,7 @@ const SUGGESTED_QUESTIONS = [
 
 const SECTION_HEADERS = ['DIRECT ANSWER', 'KEY DETAILS', 'LEGAL SOURCE', 'ADDITIONAL INFORMATION'];
 
-const genConversationId = () =>
-  `conv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const genConversationId = () => `conv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const getUserId = () => {
   try {
@@ -27,36 +31,39 @@ const getUserId = () => {
   }
 };
 
-// Render formatted AI response with section headers and bullet points
+const relativeTime = (iso) => {
+  if (!iso) return '';
+  const ms = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
+  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+};
+
 const FormattedMessage = ({ text }) => {
   const lines = text.split('\n');
   const elements = [];
-
   lines.forEach((line, i) => {
     const trimmed = line.trim();
     if (!trimmed) return;
-
     if (SECTION_HEADERS.includes(trimmed)) {
       elements.push(
-        <p key={i} className="text-xs font-bold text-brand uppercase tracking-wider mt-4 mb-1.5 first:mt-0">
-          {trimmed}
-        </p>
+        <p key={i} className="text-xs font-bold text-brand uppercase tracking-wider mt-4 mb-1.5 first:mt-0">{trimmed}</p>
       );
     } else if (trimmed.startsWith('•')) {
       elements.push(
-        <p key={i} className="text-sm text-gray-700 pl-3 leading-relaxed my-0.5">
-          {trimmed}
-        </p>
+        <p key={i} className="text-sm text-gray-700 pl-3 leading-relaxed my-0.5">{trimmed}</p>
       );
     } else {
       elements.push(
-        <p key={i} className="text-sm text-gray-700 leading-relaxed my-1">
-          {trimmed}
-        </p>
+        <p key={i} className="text-sm text-gray-700 leading-relaxed my-1">{trimmed}</p>
       );
     }
   });
-
   return <div>{elements}</div>;
 };
 
@@ -81,27 +88,128 @@ const BotAvatar = () => (
   </div>
 );
 
+const FeedbackButtons = ({ rating, onRate }) => (
+  <div className="flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+    <button
+      onClick={() => onRate('helpful')}
+      className={`p-1.5 rounded-lg transition-colors ${
+        rating === 'helpful' ? 'bg-green-50 text-green-600' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+      }`}
+      title="Helpful"
+    >
+      <svg className="w-3.5 h-3.5" fill={rating === 'helpful' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+      </svg>
+    </button>
+    <button
+      onClick={() => onRate('not_helpful')}
+      className={`p-1.5 rounded-lg transition-colors ${
+        rating === 'not_helpful' ? 'bg-red-50 text-red-600' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+      }`}
+      title="Not helpful"
+    >
+      <svg className="w-3.5 h-3.5" fill={rating === 'not_helpful' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.737 3h4.018a2 2 0 01.485.06L17 4m-7 10v5a2 2 0 002 2h.095c.5 0 .905-.405.905-.905 0-.714.211-1.412.608-2.006L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" />
+      </svg>
+    </button>
+  </div>
+);
+
+const ConversationItem = ({ conversation, isActive, onClick }) => {
+  const preview = conversation.first_message_preview || conversation.last_message_preview || 'Untitled conversation';
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left px-3 py-2.5 rounded-lg border transition-colors ${
+        isActive
+          ? 'bg-brand/5 border-brand/30'
+          : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+      }`}
+    >
+      <p className={`text-xs font-medium truncate ${isActive ? 'text-brand' : 'text-gray-800'}`}>
+        {preview}
+      </p>
+      <p className="text-[10px] text-gray-400 mt-1">
+        {conversation.message_count} msg{conversation.message_count === 1 ? '' : 's'}
+        {' · '}
+        {relativeTime(conversation.updated_at)}
+      </p>
+    </button>
+  );
+};
+
 const TaxGPT = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [conversationId, setConversationId] = useState(genConversationId);
+  const [conversations, setConversations] = useState([]);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [feedbackByMessageId, setFeedbackByMessageId] = useState({});
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const userId = useRef(getUserId());
+
+  const loadConversations = useCallback(async () => {
+    setConversationsLoading(true);
+    try {
+      const res = await listConversations(userId.current, { page: 1, pageSize: 30, sortBy: 'updated_at', sortOrder: 'desc' });
+      setConversations(Array.isArray(res?.conversations) ? res.conversations : []);
+    } catch (err) {
+      console.error('Load conversations error:', err);
+    } finally {
+      setConversationsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadConversations();
+  }, [loadConversations]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isThinking]);
 
-  // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 128) + 'px';
     }
   }, [input]);
+
+  const handleSelectConversation = async (convId) => {
+    if (isStreaming || convId === conversationId) return;
+    setHistoryLoading(true);
+    try {
+      const res = await getConversationMessages(convId);
+      const list = Array.isArray(res?.messages) ? res.messages : [];
+      setMessages(
+        list.map((m) => ({
+          id: m.id || null,
+          role: m.role,
+          content: m.content || '',
+          streaming: false,
+        }))
+      );
+      setConversationId(convId);
+      setFeedbackByMessageId({});
+    } catch (err) {
+      console.error('Load conversation error:', err);
+      toast.error('Failed to load conversation');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleNewChat = () => {
+    if (isStreaming) return;
+    setMessages([]);
+    setInput('');
+    setFeedbackByMessageId({});
+    setConversationId(genConversationId());
+  };
 
   const sendMessage = useCallback(
     async (messageText) => {
@@ -113,7 +221,6 @@ const TaxGPT = () => {
       setIsStreaming(true);
       setIsThinking(false);
 
-      // Placeholder AI message
       setMessages((prev) => [...prev, { role: 'assistant', content: '', streaming: true }]);
 
       try {
@@ -121,7 +228,7 @@ const TaxGPT = () => {
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const response = await fetch(TAXGPT_URL, {
+        const response = await fetch(TAXGPT_CHAT_URL, {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -137,6 +244,15 @@ const TaxGPT = () => {
         const decoder = new TextDecoder();
         let buffer = '';
         let accumulatedText = '';
+        let capturedMessageId = null;
+
+        const applyToLastAssistant = (updates) =>
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            updated[updated.length - 1] = { ...last, ...updates };
+            return updated;
+          });
 
         while (true) {
           const { done, value } = await reader.read();
@@ -154,43 +270,26 @@ const TaxGPT = () => {
             try {
               const event = JSON.parse(jsonStr);
 
+              // Capture message_id from any event metadata
+              const mid = event.metadata?.message_id || event.metadata?.id;
+              if (mid && !capturedMessageId) {
+                capturedMessageId = mid;
+                applyToLastAssistant({ id: mid });
+              }
+
               if (event.type === 'tool_call') {
                 setIsThinking(true);
               } else if (event.type === 'text_start') {
                 setIsThinking(false);
                 accumulatedText = event.content || '';
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  updated[updated.length - 1] = {
-                    role: 'assistant',
-                    content: accumulatedText,
-                    streaming: true,
-                  };
-                  return updated;
-                });
+                applyToLastAssistant({ content: accumulatedText, streaming: true });
               } else if (event.type === 'text_delta') {
                 setIsThinking(false);
                 accumulatedText += event.content || '';
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  updated[updated.length - 1] = {
-                    role: 'assistant',
-                    content: accumulatedText,
-                    streaming: true,
-                  };
-                  return updated;
-                });
+                applyToLastAssistant({ content: accumulatedText, streaming: true });
               } else if (event.type === 'final_result') {
                 accumulatedText = event.content || accumulatedText;
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  updated[updated.length - 1] = {
-                    role: 'assistant',
-                    content: accumulatedText,
-                    streaming: false,
-                  };
-                  return updated;
-                });
+                applyToLastAssistant({ content: accumulatedText, streaming: false });
               }
             } catch {
               // ignore JSON parse errors on individual events
@@ -212,9 +311,11 @@ const TaxGPT = () => {
       } finally {
         setIsStreaming(false);
         setIsThinking(false);
+        // Refresh the sidebar so this conversation appears/updates
+        loadConversations();
       }
     },
-    [conversationId, isStreaming]
+    [conversationId, isStreaming, loadConversations]
   );
 
   const handleKeyDown = (e) => {
@@ -224,11 +325,30 @@ const TaxGPT = () => {
     }
   };
 
-  const handleNewChat = () => {
-    if (isStreaming) return;
-    setMessages([]);
-    setInput('');
-    setConversationId(genConversationId());
+  const handleFeedback = async (messageId, rating) => {
+    if (!messageId) return;
+    // Optimistic update
+    const previous = feedbackByMessageId[messageId];
+    setFeedbackByMessageId((prev) => ({ ...prev, [messageId]: rating }));
+    try {
+      await submitFeedback({
+        user_id: userId.current,
+        conversation_id: conversationId,
+        message_id: messageId,
+        rating,
+      });
+      toast.success(rating === 'helpful' ? 'Marked helpful' : 'Feedback recorded');
+    } catch (err) {
+      console.error('Feedback error:', err);
+      toast.error('Could not save feedback');
+      // Revert
+      setFeedbackByMessageId((prev) => {
+        const copy = { ...prev };
+        if (previous) copy[messageId] = previous;
+        else delete copy[messageId];
+        return copy;
+      });
+    }
   };
 
   const isEmpty = messages.length === 0;
@@ -239,7 +359,7 @@ const TaxGPT = () => {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
-        <div className="w-56 shrink-0 border-r border-gray-100 flex flex-col bg-gray-50/50">
+        <div className="w-64 shrink-0 border-r border-gray-100 flex flex-col bg-gray-50/50">
           <div className="p-4">
             <button
               onClick={handleNewChat}
@@ -254,14 +374,26 @@ const TaxGPT = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 pb-4">
-            {!isEmpty && (
-              <div>
-                <p className="text-xs font-medium text-gray-400 mb-2">Current Session</p>
-                <div className="px-3 py-2 rounded-lg bg-brand/5 border border-brand/20">
-                  <p className="text-xs text-brand font-medium truncate">
-                    {messages[0]?.content || 'New conversation'}
-                  </p>
-                </div>
+            <p className="text-xs font-medium text-gray-400 mb-2 px-1">Conversations</p>
+            {conversationsLoading && conversations.length === 0 ? (
+              <div className="flex items-center justify-center py-8">
+                <svg className="animate-spin h-5 w-5 text-gray-300" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              </div>
+            ) : conversations.length === 0 ? (
+              <p className="text-xs text-gray-400 px-1 py-2">No prior conversations</p>
+            ) : (
+              <div className="space-y-1.5">
+                {conversations.map((c) => (
+                  <ConversationItem
+                    key={c.conversation_id}
+                    conversation={c}
+                    isActive={c.conversation_id === conversationId}
+                    onClick={() => handleSelectConversation(c.conversation_id)}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -280,10 +412,15 @@ const TaxGPT = () => {
 
         {/* Main chat area */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto">
-            {isEmpty ? (
-              /* Empty / welcome state */
+            {historyLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <svg className="animate-spin h-8 w-8 text-brand" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              </div>
+            ) : isEmpty ? (
               <div className="flex flex-col items-center justify-center h-full px-8 pb-16">
                 <div className="w-14 h-14 bg-brand/10 rounded-2xl flex items-center justify-center mb-5">
                   <svg className="w-7 h-7 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -313,33 +450,45 @@ const TaxGPT = () => {
                 {messages.map((msg, idx) => {
                   const isLastMsg = idx === messages.length - 1;
                   const showThinking = isThinking && isLastMsg && msg.role === 'assistant' && !msg.content;
+                  const canRate = msg.role === 'assistant' && msg.id && !msg.streaming && !msg.error;
+                  const currentRating = canRate ? feedbackByMessageId[msg.id] : null;
 
                   return (
                     <div
                       key={idx}
-                      className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                      className={`group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       {msg.role === 'assistant' && <BotAvatar />}
 
-                      <div
-                        className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                          msg.role === 'user'
-                            ? 'bg-brand text-white rounded-br-sm ml-10'
-                            : 'bg-gray-50 border border-gray-200 rounded-bl-sm ml-3'
-                        } ${msg.error ? 'border-red-200 bg-red-50' : ''}`}
-                      >
-                        {msg.role === 'user' ? (
-                          <p className="text-sm leading-relaxed">{msg.content}</p>
-                        ) : showThinking ? (
-                          <ThinkingIndicator />
-                        ) : msg.content ? (
-                          <>
-                            <FormattedMessage text={msg.content} />
-                            {msg.streaming && (
-                              <span className="inline-block w-0.5 h-4 bg-gray-400 animate-pulse ml-0.5 align-text-bottom rounded" />
-                            )}
-                          </>
-                        ) : null}
+                      <div className="flex flex-col">
+                        <div
+                          className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                            msg.role === 'user'
+                              ? 'bg-brand text-white rounded-br-sm ml-10'
+                              : 'bg-gray-50 border border-gray-200 rounded-bl-sm ml-3'
+                          } ${msg.error ? 'border-red-200 bg-red-50' : ''}`}
+                        >
+                          {msg.role === 'user' ? (
+                            <p className="text-sm leading-relaxed">{msg.content}</p>
+                          ) : showThinking ? (
+                            <ThinkingIndicator />
+                          ) : msg.content ? (
+                            <>
+                              <FormattedMessage text={msg.content} />
+                              {msg.streaming && (
+                                <span className="inline-block w-0.5 h-4 bg-gray-400 animate-pulse ml-0.5 align-text-bottom rounded" />
+                              )}
+                            </>
+                          ) : null}
+                        </div>
+                        {canRate && (
+                          <div className="ml-3">
+                            <FeedbackButtons
+                              rating={currentRating}
+                              onRate={(rating) => handleFeedback(msg.id, rating)}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
