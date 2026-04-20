@@ -1,20 +1,14 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { uploadInvoice } from '../../services/financialsApi';
-import toast from 'react-hot-toast';
 
 /**
  * UPLOAD INVOICE MODAL
  *
- * Modal for uploading invoices via drag-and-drop or file selection
- * Supports PDF, images (JPG, PNG, etc.) with progress tracking
+ * Picks a file and hands it to the parent. The actual upload + extraction
+ * runs on the Processing Document page so the user sees real progress feedback.
  */
-const UploadInvoiceModal = ({ isOpen, onClose, onUploadComplete }) => {
-  const { clientId } = useParams();
+const UploadInvoiceModal = ({ isOpen, onClose, onFileSelected }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [uploadMethod, setUploadMethod] = useState('pdf'); // kept for internal state reset
-  const [isUploading, setIsUploading] = useState(false);
 
   if (!isOpen) return null;
 
@@ -43,40 +37,16 @@ const UploadInvoiceModal = ({ isOpen, onClose, onUploadComplete }) => {
     }
   };
 
-  const handleUpload = async () => {
-    if (!selectedFile || !clientId) return;
-
-    try {
-      setIsUploading(true);
-
-      // Upload file and extract transactions via Transactions API
-      const response = await uploadInvoice(clientId, selectedFile);
-
-      if (response.errors && response.errors.length > 0) {
-        toast.error(`Some transactions failed: ${response.errors.join(', ')}`);
-      }
-
-      if (response.count > 0) {
-        toast.success(response.summary || 'Invoice processed successfully!');
-        onUploadComplete(selectedFile, response);
-
-        // Reset state
-        setSelectedFile(null);
-        setUploadMethod('pdf');
-      } else {
-        throw new Error('No transactions could be extracted from the document');
-      }
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast.error(error.message || 'Failed to upload invoice');
-    } finally {
-      setIsUploading(false);
-    }
+  const handleUpload = () => {
+    if (!selectedFile) return;
+    const file = selectedFile;
+    setSelectedFile(null);
+    setIsDragging(false);
+    onFileSelected(file);
   };
 
   const handleClose = () => {
     setSelectedFile(null);
-    setUploadMethod('pdf');
     setIsDragging(false);
     onClose();
   };
@@ -199,24 +169,14 @@ const UploadInvoiceModal = ({ isOpen, onClose, onUploadComplete }) => {
           </button>
           <button
             onClick={handleUpload}
-            disabled={!selectedFile || isUploading}
-            className={`px-6 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 ${
-              selectedFile && !isUploading
+            disabled={!selectedFile}
+            className={`px-6 py-2.5 rounded-lg font-medium transition-colors ${
+              selectedFile
                 ? 'bg-teal-600 hover:bg-teal-700 text-white'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >
-            {isUploading ? (
-              <>
-                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Uploading...
-              </>
-            ) : (
-              'Upload & Process'
-            )}
+            Upload & Process
           </button>
         </div>
       </div>

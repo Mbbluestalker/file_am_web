@@ -88,16 +88,10 @@ const Financials = () => {
     return matchesSearch && matchesStatus;
   });
 
-  const handleUploadComplete = (file, transactionResponse) => {
+  const handleFileSelected = (file) => {
     setShowUploadModal(false);
     navigate(`/clients/${clientId}/financials/processing`, {
-      state: {
-        fileName: file.name,
-        transactions: transactionResponse.transactions,
-        count: transactionResponse.count,
-        errors: transactionResponse.errors,
-        summary: transactionResponse.summary,
-      },
+      state: { file, fileName: file.name },
     });
   };
 
@@ -271,7 +265,7 @@ const Financials = () => {
         )}
       </div>
 
-      <UploadInvoiceModal isOpen={showUploadModal} onClose={() => setShowUploadModal(false)} onUploadComplete={handleUploadComplete} />
+      <UploadInvoiceModal isOpen={showUploadModal} onClose={() => setShowUploadModal(false)} onFileSelected={handleFileSelected} />
     </PageShell>
   );
 };

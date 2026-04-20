@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/client/Sidebar';
+import { getClientDetails } from '../services/clientApi';
 
 const SubmitVATReturn = () => {
   const navigate = useNavigate();
@@ -10,8 +11,30 @@ const SubmitVATReturn = () => {
 
   const rawFiling = location.state?.filing || null;
 
-  const [authorizations, setAuthorizations] = useState({ client: false, consultant: false });
+  const [consultantApproved, setConsultantApproved] = useState(false);
   const [showWhatHappens, setShowWhatHappens] = useState(false);
+  const [clientDetails, setClientDetails] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!clientId) return;
+    const load = async () => {
+      try {
+        setDetailsLoading(true);
+        const res = await getClientDetails(clientId);
+        if (res?.status && res.data) setClientDetails(res.data);
+      } catch (err) {
+        console.error('Client details fetch error:', err);
+      } finally {
+        setDetailsLoading(false);
+      }
+    };
+    load();
+  }, [clientId]);
+
+  const clientAuthorized =
+    clientDetails?.filingAuthorization === true ||
+    clientDetails?.consultantLink?.filingAuthorization === true;
 
   const filing = rawFiling
     ? {
@@ -36,22 +59,7 @@ const SubmitVATReturn = () => {
     'Secure computation module complete',
   ];
 
-  const authorizationItems = [
-    {
-      id: 'client',
-      role: 'Client Authorization',
-      description:
-        'I hereby authorize the submission of this tax return to the Federal Inland Revenue Service (FIRS). I confirm that all information provided is accurate and complete.',
-    },
-    {
-      id: 'consultant',
-      role: 'Senior Consultant Authorization',
-      description:
-        'As the supervising tax consultant, I have reviewed this return and confirm that all calculations and supporting documentation comply with the requirements of the relevant tax Act.',
-    },
-  ];
-
-  const canSubmit = authorizations.client && authorizations.consultant;
+  const canSubmit = clientAuthorized && consultantApproved;
 
   const handleSubmit = () => {
     if (!canSubmit) return;
@@ -146,23 +154,59 @@ const SubmitVATReturn = () => {
                     Before submitting to FIRS, both parties must authorize this filing.
                   </p>
                   <div className="space-y-4">
-                    {authorizationItems.map((item) => (
-                      <div key={item.id} className="border border-gray-200 rounded-xl p-4">
-                        <div className="flex items-start gap-3">
-                          <input
-                            type="checkbox"
-                            id={item.id}
-                            checked={authorizations[item.id]}
-                            onChange={() => setAuthorizations((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
-                            className="w-4 h-4 mt-0.5 accent-teal-600 cursor-pointer"
-                          />
-                          <label htmlFor={item.id} className="cursor-pointer flex-1">
-                            <p className="text-sm font-semibold text-gray-900">{item.role}</p>
-                            <p className="text-xs text-gray-400 mt-2 leading-relaxed">{item.description}</p>
-                          </label>
+                    {/* Client Authorization — controlled by backend filingAuthorization flag */}
+                    {detailsLoading ? (
+                      <div className="border border-gray-200 rounded-xl p-4 text-xs text-gray-400">
+                        Checking client authorization…
+                      </div>
+                    ) : clientAuthorized ? (
+                      <div className="border border-green-200 bg-green-50 rounded-xl p-4 flex items-start gap-3">
+                        <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center shrink-0 mt-0.5">
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-green-900">Client Authorization · Granted</p>
+                          <p className="text-xs text-green-700 mt-1 leading-relaxed">
+                            The client has granted filing authorization to this consultant. You may proceed with FIRS submission.
+                          </p>
                         </div>
                       </div>
-                    ))}
+                    ) : (
+                      <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 flex items-start gap-3">
+                        <div className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0 mt-0.5">
+                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-amber-900">Client Authorization · Not Granted</p>
+                          <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+                            The client has not yet authorized this consultant to file tax returns on their behalf. Submission is blocked until authorization is granted via the client's mobile app.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Senior Consultant Authorization — consultant-side checkbox */}
+                    <div className="border border-gray-200 rounded-xl p-4">
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          id="consultant"
+                          checked={consultantApproved}
+                          onChange={() => setConsultantApproved((v) => !v)}
+                          className="w-4 h-4 mt-0.5 accent-teal-600 cursor-pointer"
+                        />
+                        <label htmlFor="consultant" className="cursor-pointer flex-1">
+                          <p className="text-sm font-semibold text-gray-900">Senior Consultant Authorization</p>
+                          <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+                            As the supervising tax consultant, I have reviewed this return and confirm that all calculations and supporting documentation comply with the requirements of the relevant tax Act.
+                          </p>
+                        </label>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
