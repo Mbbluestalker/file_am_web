@@ -12,46 +12,12 @@ const TABS = [
   { id: 'firs', label: 'PAYE' },
 ];
 
-const makeRows = () => [
-  {
-    label: 'Net Profit Before Tax', amount: null, type: 'normal', expandable: true,
-    subItems: [
-      { label: 'Revenue', amount: null, negative: false },
-      { label: 'Cost of Sales', amount: null, negative: true },
-      { label: 'Other Income', amount: null, negative: true },
-    ],
-  },
-  {
-    label: 'Tax Adjustments', amount: null, type: 'normal', expandable: true,
-    subItems: [
-      { label: 'Non-Allowable Expenses', amount: null, negative: false },
-      { label: 'Non-Allowable Depreciation', amount: null, negative: false },
-    ],
-  },
-  { label: 'Adjusted Profit', amount: null, type: 'subtotal', expandable: false },
-  {
-    label: 'Capital Allowances', amount: null, type: 'negative', expandable: true,
-    subItems: [
-      { label: 'Fixed Extensions – Initial Allowance (EPA)', amount: null, negative: true },
-      { label: 'Initial Allowance', amount: null, negative: true },
-    ],
-  },
-  {
-    label: 'Loss Carry-Forward', amount: null, type: 'text', text: '—', expandable: true,
-    subItems: [
-      { label: 'Prior Year Losses', amount: null, negative: false },
-      { label: 'Utilised This Year', amount: null, negative: false },
-    ],
-  },
-  { label: 'Final Taxable Profit', amount: null, type: 'subtotal', expandable: false },
-  {
-    label: 'Tax Rate Applied', amount: null, type: 'rate', rate: '—', expandable: true,
-    subItems: [
-      { label: 'Company Type', amount: null, negative: false, text: '—' },
-      { label: 'Applicable Rate', amount: null, negative: false, text: '—' },
-    ],
-  },
-];
+const TAB_META = {
+  cit:  { title: 'CIT Computation Breakdown',  totalLabel: 'Total Tax Payable (CIT)' },
+  vat:  { title: 'VAT Computation Breakdown',  totalLabel: 'Total Tax Payable (VAT)' },
+  wht:  { title: 'WHT Computation Breakdown',  totalLabel: 'Total Tax Payable (WHT)' },
+  firs: { title: 'PAYE Computation Breakdown', totalLabel: 'Total Tax Payable (PAYE)' },
+};
 
 const DEFAULT_ASSUMPTIONS = {
   vatRegistrationStatus: '—',
@@ -60,11 +26,130 @@ const DEFAULT_ASSUMPTIONS = {
   pioneerTaxStatus: '—',
 };
 
-const BREAKDOWN_DATA = {
-  cit:  { title: 'CIT Computation Breakdown',  rows: makeRows(), total: { label: 'Total Tax Payable (CIT)',  amount: null }, assumptions: DEFAULT_ASSUMPTIONS },
-  vat:  { title: 'VAT Computation Breakdown',  rows: makeRows(), total: { label: 'Total Tax Payable (VAT)',  amount: null }, assumptions: DEFAULT_ASSUMPTIONS },
-  wht:  { title: 'WHT Computation Breakdown',  rows: makeRows(), total: { label: 'Total Tax Payable (WHT)',  amount: null }, assumptions: DEFAULT_ASSUMPTIONS },
-  firs: { title: 'PAYE Computation Breakdown', rows: makeRows(), total: { label: 'Total Tax Payable (PAYE)', amount: null }, assumptions: DEFAULT_ASSUMPTIONS },
+const fmtDate = (iso) => {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
+  catch { return '—'; }
+};
+
+// Per-tab row builders — each faithfully mirrors the backend shape for that tax.
+// CIT: profit-based with allowances (only tax that fits a full computation cascade).
+// VAT: output-minus-input formula.
+// WHT: single aggregate with optional period breakdown.
+// PAYE: three parallel components (PAYE, contractor WHT, pension).
+
+const buildCitRows = (api) => {
+  const netProfit = api.netProfit ?? null;
+  const taxAdj = api.taxAdjustments ?? null;
+  const adjustedProfit = api.adjustedProfit ?? null;
+  const capitalAllowances = api.breakdown?.capitalAllowances ?? 0;
+  const lossCarryForward = api.breakdown?.lossCarryForward ?? 0;
+  const finalTaxable =
+    adjustedProfit != null ? adjustedProfit - capitalAllowances - lossCarryForward : null;
+  const citRate = api.citRate ?? null;
+
+  return {
+    rows: [
+      { label: 'Net Profit Before Tax', amount: netProfit, type: 'normal' },
+      { label: 'Tax Adjustments', amount: taxAdj, type: 'normal' },
+      { label: 'Adjusted Profit', amount: adjustedProfit, type: 'subtotal' },
+      { label: 'Capital Allowances', amount: capitalAllowances, type: 'negative' },
+      { label: 'Loss Carry-Forward', amount: lossCarryForward, type: 'negative' },
+      { label: 'Final Taxable Profit', amount: finalTaxable, type: 'subtotal' },
+      { label: 'Tax Rate Applied', rate: citRate != null ? `${citRate}%` : '—', type: 'rate' },
+    ],
+    totalAmount: api.citPayable ?? null,
+  };
+};
+
+const buildVatRows = (api) => {
+  const b = api.breakdown || {};
+  return {
+    rows: [
+      { label: 'Output VAT on Sales', amount: b.outputVatOnSales ?? null, type: 'normal' },
+      { label: 'Input VAT on Purchases', amount: b.inputVatOnPurchases ?? 0, type: 'negative' },
+      { label: 'VAT on Imported Services', amount: b.vatOnImportedServices ?? 0, type: 'normal' },
+      { label: 'VAT Adjustment', amount: b.vatAdjustment ?? 0, type: 'normal' },
+      { label: 'Net VAT Payable', amount: api.netVatPayable ?? null, type: 'subtotal' },
+      { label: 'Filing Status', text: api.filingStatus ?? '—', type: 'text' },
+    ],
+    totalAmount: api.netVatPayable ?? null,
+  };
+};
+
+const buildWhtRows = (api) => {
+  const breakdown = Array.isArray(api.breakdown) ? api.breakdown : [];
+  const total = api.totalWhtCollected ?? 0;
+
+  const row = breakdown.length > 0
+    ? {
+        label: 'Total WHT Collected',
+        amount: total,
+        type: 'normal',
+        expandable: true,
+        subItems: breakdown.map((b) => ({
+          label: b.period ? `Period ${b.period}` : (b.label || 'Period'),
+          amount: b.amount ?? null,
+          negative: false,
+        })),
+      }
+    : { label: 'Total WHT Collected', amount: total, type: 'normal' };
+
+  return { rows: [row], totalAmount: total };
+};
+
+const buildPayeRows = (api) => {
+  const b = api.breakdown || {};
+  const noteRow = (note) =>
+    note ? [{ label: 'Note', text: note, negative: false }] : [];
+
+  return {
+    rows: [
+      {
+        label: 'PAYE',
+        amount: b.paye?.amount ?? api.payeAmount ?? null,
+        type: 'normal',
+        expandable: true,
+        subItems: [
+          { label: 'Due Date', text: fmtDate(b.paye?.dueDate || api.dueDate), negative: false },
+          { label: 'Status', text: b.paye?.status ?? '—', negative: false },
+          ...noteRow(b.paye?.note || api.note),
+        ],
+      },
+      {
+        label: 'Contractor WHT',
+        amount: b.contractorWht?.amount ?? 0,
+        type: 'normal',
+        expandable: true,
+        subItems: [
+          { label: 'Status', text: b.contractorWht?.status ?? '—', negative: false },
+          ...noteRow(b.contractorWht?.note),
+        ],
+      },
+      {
+        label: 'Pension',
+        amount: b.pension?.amount ?? 0,
+        type: 'normal',
+        expandable: true,
+        subItems: [
+          { label: 'Status', text: b.pension?.status ?? '—', negative: false },
+          ...noteRow(b.pension?.note),
+        ],
+      },
+    ],
+    totalAmount: api.payeAmount ?? null,
+  };
+};
+
+const buildRows = (tab, api) => {
+  if (!api) return { rows: [], totalAmount: null };
+  switch (tab) {
+    case 'cit':  return buildCitRows(api);
+    case 'vat':  return buildVatRows(api);
+    case 'wht':  return buildWhtRows(api);
+    case 'firs': return buildPayeRows(api);
+    default:     return { rows: [], totalAmount: null };
+  }
 };
 
 const TaxComputationBreakdown = () => {
@@ -82,6 +167,8 @@ const TaxComputationBreakdown = () => {
   const toggleRow = (idx) => {
     setExpandedRows((prev) => ({ ...prev, [idx]: !prev[idx] }));
   };
+
+  useEffect(() => { setExpandedRows({}); }, [activeTab]);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -148,77 +235,21 @@ const TaxComputationBreakdown = () => {
 
   const formatCurrency = (amount) => (amount == null ? '—' : `₦${Number(amount).toLocaleString()}`);
 
-  const buildData = () => {
-    const base = BREAKDOWN_DATA[activeTab];
-    const api = apiData[activeTab];
+  const resolvedAssumptions = assumptions ? {
+    vatRegistrationStatus: assumptions.vatRegistrationStatus ?? '—',
+    applicationCitRate:    assumptions.applicationCitRate ?? null,
+    msmeExemptionEligible: assumptions.msmeExemptionEligible === 'Yes',
+    pioneerTaxStatus:      assumptions.pioneerTaxStatus ?? '—',
+  } : DEFAULT_ASSUMPTIONS;
 
-    const resolvedAssumptions = assumptions ? {
-      vatRegistrationStatus: assumptions.vatRegistrationStatus ?? '—',
-      applicationCitRate:    assumptions.applicationCitRate ?? null,
-      msmeExemptionEligible: assumptions.msmeExemptionEligible === 'Yes',
-      pioneerTaxStatus:      assumptions.pioneerTaxStatus ?? '—',
-    } : base.assumptions;
-
-    if (!api) return { ...base, assumptions: resolvedAssumptions };
-
-    const rows = base.rows.map((r) => ({ ...r, subItems: r.subItems ? [...r.subItems] : undefined }));
-    let total = { ...base.total };
-
-    if (activeTab === 'cit') {
-      if (api.netProfit !== undefined)      rows[0] = { ...rows[0], amount: api.netProfit };
-      if (api.taxAdjustments !== undefined) rows[1] = { ...rows[1], amount: api.taxAdjustments };
-      if (api.adjustedProfit !== undefined) rows[2] = { ...rows[2], amount: api.adjustedProfit };
-      if (api.adjustedProfit !== undefined) rows[5] = { ...rows[5], amount: api.adjustedProfit };
-      if (api.citRate !== undefined)        rows[6] = { ...rows[6], rate: `${api.citRate}%`, subItems: [{ label: 'Company Type', amount: null, negative: false, text: '—' }, { label: 'Applicable Rate', amount: null, negative: false, text: `${api.citRate}%` }] };
-      total.amount = api.citPayable ?? null;
-    }
-
-    if (activeTab === 'firs') {
-      rows[0] = {
-        ...rows[0], amount: api.payeAmount ?? null,
-        subItems: [
-          { label: 'PAYE', amount: api.breakdown?.paye?.amount ?? null, negative: false },
-          { label: 'Pension', amount: api.breakdown?.pension?.amount ?? null, negative: false },
-        ],
-      };
-      rows[2] = { ...rows[2], amount: api.payeAmount ?? null };
-      rows[5] = { ...rows[5], amount: api.payeAmount ?? null };
-      rows[6] = {
-        ...rows[6], rate: '—',
-        subItems: [
-          { label: 'Due Date', amount: null, negative: false, text: api.dueDate ? new Date(api.dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
-          { label: 'Status', amount: null, negative: false, text: api.breakdown?.paye?.status ?? '—' },
-          { label: 'Note', amount: null, negative: false, text: api.note ?? '—' },
-        ],
-      };
-      total.amount = api.payeAmount ?? null;
-    }
-
-    if (activeTab === 'wht') {
-      const periodSubItems = (api.breakdown ?? []).map((b) => ({
-        label: `Period ${b.period}`, amount: b.amount, negative: false,
-      }));
-      rows[0] = { ...rows[0], amount: api.totalWhtCollected ?? null, subItems: periodSubItems.length ? periodSubItems : rows[0].subItems };
-      rows[2] = { ...rows[2], amount: api.totalWhtCollected ?? null };
-      rows[5] = { ...rows[5], amount: api.totalWhtCollected ?? null };
-      rows[6] = { ...rows[6], rate: '—', subItems: [{ label: 'Company Type', amount: null, negative: false, text: '—' }, { label: 'Applicable Rate', amount: null, negative: false, text: '—' }] };
-      total.amount = api.totalWhtCollected ?? null;
-    }
-
-    if (activeTab === 'vat') {
-      if (api.totalVatCollected !== undefined)          rows[0] = { ...rows[0], amount: api.totalVatCollected, subItems: [{ label: 'Output VAT on Sales', amount: api.breakdown?.outputVatOnSales ?? null, negative: false }, { label: 'VAT on Imported Services', amount: api.breakdown?.vatOnImportedServices ?? null, negative: false }] };
-      if (api.breakdown?.vatAdjustment !== undefined)   rows[1] = { ...rows[1], amount: api.breakdown.vatAdjustment };
-      rows[2] = { ...rows[2], amount: api.totalVatCollected ?? null };
-      if (api.totalVatPaid !== undefined)               rows[3] = { ...rows[3], amount: api.totalVatPaid, subItems: [{ label: 'Input VAT on Purchases', amount: api.breakdown?.inputVatOnPurchases ?? null, negative: true }] };
-      rows[5] = { ...rows[5], amount: api.netVatPayable ?? null };
-      rows[6] = { ...rows[6], rate: api.vatRate ? `${api.vatRate}%` : '—', subItems: [{ label: 'Filing Status', amount: null, negative: false, text: api.filingStatus ?? '—' }] };
-      total.amount = api.netVatPayable ?? null;
-    }
-
-    return { ...base, rows, total, assumptions: resolvedAssumptions };
+  const api = apiData[activeTab];
+  const { rows, totalAmount } = buildRows(activeTab, api);
+  const data = {
+    title: TAB_META[activeTab].title,
+    rows,
+    total: { label: TAB_META[activeTab].totalLabel, amount: totalAmount },
+    assumptions: resolvedAssumptions,
   };
-
-  const data = buildData();
 
   return (
     <div className="h-screen bg-white flex overflow-hidden">
@@ -288,6 +319,13 @@ const TaxComputationBreakdown = () => {
                 </div>
 
                 <div>
+                  {data.rows.length === 0 && (
+                    <div className="py-10 text-center">
+                      <p className="text-sm text-gray-500">
+                        No {activeTab.toUpperCase() === 'FIRS' ? 'PAYE' : activeTab.toUpperCase()} computation available for this period.
+                      </p>
+                    </div>
+                  )}
                   {data.rows.map((row, idx) => (
                     <div key={idx}>
                       {/* Main row */}
