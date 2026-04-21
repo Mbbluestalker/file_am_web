@@ -9,6 +9,9 @@ import { getFilingById, getFilingReport, submitTaxReturn } from '../services/fil
 import { getEvidenceVaultDocuments } from '../services/evidenceVaultApi';
 import { getVatComputationResults } from '../services/taxApi';
 
+// Filings in these states have already been filed — the submit flow should be locked.
+const LOCKED_STATUSES = new Set(['submitted', 'paid']);
+
 // Transform API completion.items → FilingChecklist shape
 const toChecklistItems = (items) =>
   (items || []).map((it) => ({
@@ -77,13 +80,17 @@ const FilingDetail = () => {
     return () => { cancelled = true; };
   }, [clientId, id]);
 
+  const isLocked = rawFiling ? LOCKED_STATUSES.has((rawFiling.status || '').toLowerCase()) : false;
+
   const filing = rawFiling ? {
     title: `${rawFiling.taxType} Return - ${rawFiling.periodLabel || ''}`,
-    subtitle: 'Review checklist and resolve blockers before submission',
+    subtitle: isLocked
+      ? 'This return has already been filed. Review the submission details below.'
+      : 'Review checklist and resolve blockers before submission',
     period: rawFiling.periodLabel || '—',
     dueDate: rawFiling.dueDate ? new Date(rawFiling.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '—',
     amount: rawFiling.amount ?? null,
-    status: rawFiling.status || '—',
+    status: (rawFiling.status || '—').toLowerCase(),
     readiness: report?.readiness ?? rawFiling.completionPercent ?? 0,
   } : null;
 
@@ -93,8 +100,13 @@ const FilingDetail = () => {
     ? toChecklistItems(rawFiling.completion.items)
     : [];
 
+  // Pre-submit blockers = unmet items EXCLUDING the `workflow` category (that item is the act of submitting itself).
+  const unmetBlockers = (rawFiling?.completion?.items || []).filter(
+    (it) => !it.met && it.category !== 'workflow'
+  );
+
   const handleSubmit = async () => {
-    if (!rawFiling || isSubmitting) return;
+    if (!rawFiling || isSubmitting || isLocked) return;
     try {
       setIsSubmitting(true);
       const response = await submitTaxReturn(clientId, rawFiling.taxType, {
@@ -185,6 +197,8 @@ const FilingDetail = () => {
             <FilingSummaryPanel
               filing={filing}
               report={report}
+              totalPaid={rawFiling?.totalPaid}
+              isLocked={isLocked}
               onSubmit={() => setShowConfirm(true)}
               isSubmitting={isSubmitting}
             />
@@ -202,10 +216,30 @@ const FilingDetail = () => {
             <p>
               You are about to submit a <span className="font-semibold text-gray-700">{rawFiling?.taxType}</span> return for <span className="font-semibold text-gray-700">{rawFiling?.periodLabel}</span> with an amount of <span className="font-semibold text-gray-700">{formatCurrency(filing?.amount)}</span>.
             </p>
+            {unmetBlockers.length > 0 && (
+              <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 p-3">
+                <p className="text-xs font-semibold text-orange-900 mb-2">
+                  {unmetBlockers.length} checklist {unmetBlockers.length === 1 ? 'item is' : 'items are'} not yet complete:
+                </p>
+                <ul className="space-y-1">
+                  {unmetBlockers.map((it) => (
+                    <li key={it.key} className="flex items-start gap-2 text-xs text-orange-800">
+                      <svg className="w-3.5 h-3.5 mt-0.5 shrink-0 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M4.93 19h14.14c1.54 0 2.5-1.67 1.73-3L13.73 4a2 2 0 00-3.46 0L3.2 16c-.77 1.33.19 3 1.73 3z" />
+                      </svg>
+                      <span>{it.label}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-[11px] text-orange-700 mt-2">
+                  You can still submit, but these gaps may need to be resolved for full compliance.
+                </p>
+              </div>
+            )}
             <p className="text-xs text-gray-400 mt-2">This action cannot be undone.</p>
           </>
         }
-        confirmLabel={isSubmitting ? 'Submitting...' : 'Yes, Submit'}
+        confirmLabel={isSubmitting ? 'Submitting...' : unmetBlockers.length > 0 ? 'Submit Anyway' : 'Yes, Submit'}
         isLoading={isSubmitting}
         variant="warning"
       />
