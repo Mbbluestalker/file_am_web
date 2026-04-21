@@ -111,6 +111,21 @@ export const submitTaxReturn = async (clientId, taxType, data) => {
 };
 
 /**
+ * GET FILING BY ID
+ * Fetch a single filing's detail (same shape as a list row plus timeline, totalPaid, currency).
+ * Returns 404 if the filing does not belong to the client.
+ * @param {string} clientId - The client/company ID
+ * @param {string} filingId - The filing (TaxPayable) ID
+ */
+export const getFilingById = async (clientId, filingId) => {
+  const response = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/clients/${clientId}/filings/${filingId}`,
+    'GET'
+  );
+  return response;
+};
+
+/**
  * GET FILING REPORT
  * Fetch detailed report for a specific filing
  * @param {string} clientId - The client/company ID
@@ -134,5 +149,6 @@ export default {
   getUnfiledObligations,
   getFilings,
   createFiling,
+  getFilingById,
   getFilingReport,
 };

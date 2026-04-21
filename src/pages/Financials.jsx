@@ -7,9 +7,11 @@ import { getFinancialDocuments } from '../services/financialsApi';
 
 const STATUS_LABEL = {
   clean: 'Clean',
-  'needs-review': 'Needs Review',
+  review: 'Needs Review',
   flagged: 'Flagged',
   pending: 'Pending',
+  processed: 'Processed',
+  completed: 'Completed',
 };
 
 const confidenceColor = (v) => {
@@ -25,68 +27,81 @@ const Financials = () => {
   const { clientId } = useParams();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [documents, setDocuments] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [isRefetching, setIsRefetching] = useState(false);
   const [error, setError] = useState(null);
-  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
+  const [page, setPage] = useState(1);
+  const limit = 20;
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 0 });
 
-  const fetchDocuments = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const res = await getFinancialDocuments(clientId, pagination.page, pagination.limit);
-      if (res.status && res.data) {
-        const list = res.data.data || [];
-        const transformed = list.map((doc) => ({
-          id: doc.id,
-          invoiceNumber: doc.invoiceNumber || shortId(doc.id),
-          date: doc.documentDate
-            ? new Date(doc.documentDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-            : '—',
-          vendor: doc.vendor || '—',
-          amount: doc.amount != null ? parseFloat(doc.amount) : null,
-          status: (doc.documentStatus || 'pending').toLowerCase(),
-          uploadMethod: doc.format || '—',
-          confidence: doc.confidence != null ? parseFloat(doc.confidence) : null,
-          invoiceId: doc.invoiceId || null,
-        }));
-        setDocuments(transformed);
-        setPagination({
-          page: res.data.page || 1,
-          limit: res.data.limit || 20,
-          total: res.data.total || transformed.length,
-          totalPages: res.data.totalPages || 1,
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  useEffect(() => { setPage(1); }, [debouncedSearch, statusFilter]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchDocuments = async () => {
+      try {
+        setIsRefetching(true);
+        setError(null);
+        const res = await getFinancialDocuments(clientId, {
+          page,
+          limit,
+          status: statusFilter,
+          q: debouncedSearch || undefined,
         });
-      } else {
-        setError('Failed to load documents');
+        if (cancelled) return;
+        if (res.status && res.data) {
+          const list = res.data.data || [];
+          const transformed = list.map((doc) => ({
+            id: doc.id,
+            invoiceNumber: doc.invoiceNumber || shortId(doc.id),
+            date: doc.documentDate
+              ? new Date(doc.documentDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+              : '—',
+            vendor: doc.vendor || '—',
+            amount: doc.amount != null ? parseFloat(doc.amount) : null,
+            status: (doc.documentStatus || 'pending').toLowerCase(),
+            uploadMethod: doc.format || '—',
+            confidence: doc.confidence != null ? parseFloat(doc.confidence) : null,
+            invoiceId: doc.invoiceId || null,
+          }));
+          setDocuments(transformed);
+          setPagination({
+            total: res.data.total ?? transformed.length,
+            totalPages: res.data.totalPages || 1,
+          });
+        } else {
+          setError('Failed to load documents');
+        }
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Error fetching documents:', err);
+        setError(err.message || 'Failed to load documents');
+      } finally {
+        if (!cancelled) {
+          setIsRefetching(false);
+          setIsInitialLoad(false);
+        }
       }
-    } catch (err) {
-      console.error('Error fetching documents:', err);
-      setError(err.message || 'Failed to load documents');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchDocuments(); }, [clientId, pagination.page, pagination.limit]);
+    };
+    fetchDocuments();
+    return () => { cancelled = true; };
+  }, [clientId, page, limit, statusFilter, debouncedSearch]);
 
   const stats = {
     total: pagination.total || documents.length,
     clean: documents.filter((d) => d.status === 'clean').length,
-    needsReview: documents.filter((d) => d.status === 'needs-review').length,
+    needsReview: documents.filter((d) => d.status === 'review').length,
     flagged: documents.filter((d) => d.status === 'flagged').length,
   };
-
-  const filteredDocuments = documents.filter((doc) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      (doc.invoiceNumber || '').toLowerCase().includes(q) ||
-      (doc.vendor || '').toLowerCase().includes(q);
-    const matchesStatus = statusFilter === 'all' || doc.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
 
   const handleFileSelected = (file) => {
     setShowUploadModal(false);
@@ -99,7 +114,7 @@ const Financials = () => {
     navigate(`/clients/${clientId}/financials/review/${doc.id}`);
   };
 
-  if (isLoading) return <PageShell clientId={clientId}><LoadingSpinner fullHeight message="Loading documents..." /></PageShell>;
+  if (isInitialLoad) return <PageShell clientId={clientId}><LoadingSpinner fullHeight message="Loading documents..." /></PageShell>;
 
   if (error) {
     return (
@@ -159,9 +174,10 @@ const Financials = () => {
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="appearance-none pl-4 pr-10 py-3 bg-white border border-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent cursor-pointer">
               <option value="all">All Status</option>
               <option value="clean">Clean</option>
-              <option value="needs-review">Needs Review</option>
+              <option value="review">Needs Review</option>
               <option value="flagged">Flagged</option>
               <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
             </select>
             <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -170,7 +186,7 @@ const Financials = () => {
         </div>
 
         {/* Document Table */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className={`bg-white rounded-xl border border-gray-200 overflow-hidden transition-opacity ${isRefetching ? 'opacity-60' : 'opacity-100'}`}>
           <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200">
             <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase">Invoice #</div>
             <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase">Date</div>
@@ -181,7 +197,7 @@ const Financials = () => {
             <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase">Confidence</div>
           </div>
 
-          {filteredDocuments.map((doc) => (
+          {documents.map((doc) => (
             <div
               key={doc.id}
               onClick={() => handleRowClick(doc)}
@@ -215,7 +231,15 @@ const Financials = () => {
             </div>
           ))}
 
-          {filteredDocuments.length === 0 && <EmptyState message="No documents found" />}
+          {documents.length === 0 && (
+            <EmptyState
+              message={
+                debouncedSearch || statusFilter !== 'all'
+                  ? 'No documents match your filters'
+                  : 'No documents found'
+              }
+            />
+          )}
         </div>
 
         {/* Pagination */}
@@ -224,19 +248,19 @@ const Financials = () => {
             <div className="text-xs text-gray-500">
               Showing{' '}
               <span className="font-semibold text-gray-700">
-                {(pagination.page - 1) * pagination.limit + 1}
+                {(page - 1) * limit + 1}
               </span>
               {' to '}
               <span className="font-semibold text-gray-700">
-                {Math.min(pagination.page * pagination.limit, pagination.total)}
+                {Math.min(page * limit, pagination.total)}
               </span>
               {' of '}
               <span className="font-semibold text-gray-700">{pagination.total}</span> documents
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setPagination((p) => ({ ...p, page: Math.max(1, p.page - 1) }))}
-                disabled={pagination.page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
                 className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -245,14 +269,12 @@ const Financials = () => {
                 Previous
               </button>
               <span className="text-xs text-gray-500 px-2">
-                Page <span className="font-semibold text-gray-700">{pagination.page}</span> of{' '}
+                Page <span className="font-semibold text-gray-700">{page}</span> of{' '}
                 <span className="font-semibold text-gray-700">{pagination.totalPages || 1}</span>
               </span>
               <button
-                onClick={() =>
-                  setPagination((p) => ({ ...p, page: Math.min(p.totalPages || 1, p.page + 1) }))
-                }
-                disabled={pagination.page >= (pagination.totalPages || 1)}
+                onClick={() => setPage((p) => Math.min(pagination.totalPages || 1, p + 1))}
+                disabled={page >= (pagination.totalPages || 1)}
                 className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 Next

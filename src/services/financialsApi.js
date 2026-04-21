@@ -106,14 +106,26 @@ export const getExpenseBreakdown = async (clientId, year = new Date().getFullYea
 
 /**
  * GET FINANCIAL DOCUMENTS
- * Get paginated list of financial documents
+ * Get paginated list of financial documents.
  * @param {string} clientId - The company ID
- * @param {number} page - Page number (default: 1)
- * @param {number} limit - Items per page (default: 20)
+ * @param {Object|number} options - Either a page number (legacy) or { page, limit, status, q, dateFrom, dateTo }
+ *   - status: one of `clean`, `pending`, `processed`, `review`, `flagged` (backend enum)
+ *   - q: free-text; backend searches vendor, invoice number, description, document type
  */
-export const getFinancialDocuments = async (clientId, page = 1, limit = 20) => {
+export const getFinancialDocuments = async (clientId, options = {}, legacyLimit) => {
+  const opts = typeof options === 'number'
+    ? { page: options, limit: legacyLimit ?? 20 }
+    : options;
+  const { page = 1, limit = 20, status, q, dateFrom, dateTo } = opts;
+
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (status && status !== 'all') params.set('status', status);
+  if (q) params.set('q', q);
+  if (dateFrom) params.set('dateFrom', dateFrom);
+  if (dateTo) params.set('dateTo', dateTo);
+
   const response = await makeRequest(
-    `/api/v${API_VERSION}/enterprise/clients/${clientId}/financials/documents?page=${page}&limit=${limit}`,
+    `/api/v${API_VERSION}/enterprise/clients/${clientId}/financials/documents?${params.toString()}`,
     'GET'
   );
   return response;

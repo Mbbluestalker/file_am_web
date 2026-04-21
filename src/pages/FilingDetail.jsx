@@ -5,7 +5,7 @@ import { PageShell, LoadingSpinner, ConfirmModal } from '../components/common';
 import FilingChecklist from '../components/filings/FilingChecklist';
 import FilingSummaryPanel from '../components/filings/FilingSummaryPanel';
 import { formatCurrency } from '../utils/format';
-import { getFilingReport, submitTaxReturn } from '../services/filingsApi';
+import { getFilingById, getFilingReport, submitTaxReturn } from '../services/filingsApi';
 import { getEvidenceVaultDocuments } from '../services/evidenceVaultApi';
 import { getVatComputationResults } from '../services/taxApi';
 
@@ -21,23 +21,34 @@ const FilingDetail = () => {
   const navigate = useNavigate();
   const { id, clientId } = useParams();
   const location = useLocation();
-  const rawFiling = location.state?.filing || null;
+  const seededFiling = location.state?.filing || null;
 
+  const [rawFiling, setRawFiling] = useState(seededFiling);
   const [expandedItems, setExpandedItems] = useState({});
   const [report, setReport] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [vatResults, setVatResults] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!seededFiling);
+  const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchData = async () => {
       if (!clientId || !id) return;
       try {
-        setIsLoading(true);
-        const year = rawFiling?.periodYear;
-        const month = rawFiling?.periodMonth;
+        const filingRes = await getFilingById(clientId, id);
+        if (cancelled) return;
+        if (!filingRes?.status || !filingRes.data) {
+          setError(filingRes?.message || 'Filing not found');
+          return;
+        }
+        const fresh = filingRes.data;
+        setRawFiling(fresh);
+
+        const year = fresh.periodYear;
+        const month = fresh.periodMonth;
         const dateFrom = year && month ? new Date(year, month - 1, 1).toISOString().split('T')[0] : '';
         const dateTo = year && month ? new Date(year, month, 0).toISOString().split('T')[0] : '';
 
@@ -46,6 +57,7 @@ const FilingDetail = () => {
           getEvidenceVaultDocuments(clientId, 1, 50, dateFrom, dateTo),
           getVatComputationResults(clientId),
         ]);
+        if (cancelled) return;
 
         if (reportRes.status === 'fulfilled' && reportRes.value?.status && reportRes.value.data) setReport(reportRes.value.data);
         if (docsRes.status === 'fulfilled' && docsRes.value?.status && docsRes.value.data) {
@@ -54,12 +66,15 @@ const FilingDetail = () => {
         }
         if (vatRes.status === 'fulfilled' && vatRes.value?.status && vatRes.value.data) setVatResults(vatRes.value.data);
       } catch (err) {
+        if (cancelled) return;
         console.error('Filing detail fetch error:', err);
+        setError(err.message || 'Failed to load filing');
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
     fetchData();
+    return () => { cancelled = true; };
   }, [clientId, id]);
 
   const filing = rawFiling ? {
@@ -100,6 +115,25 @@ const FilingDetail = () => {
       setIsSubmitting(false);
     }
   };
+
+  if (error) {
+    return (
+      <PageShell clientId={clientId}>
+        <div className="flex-1 flex items-center justify-center py-20">
+          <div className="text-center max-w-md">
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Filing not found</h1>
+            <p className="text-gray-500 mb-6">{error}</p>
+            <button
+              onClick={() => navigate(`/clients/${clientId}/filings`)}
+              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
+            >
+              Back to Filings
+            </button>
+          </div>
+        </div>
+      </PageShell>
+    );
+  }
 
   return (
     <PageShell clientId={clientId}>
