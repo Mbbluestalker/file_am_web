@@ -190,12 +190,15 @@ export const uploadDocument = async (clientId, file, metadata = {}) => {
 
 /**
  * UPLOAD INVOICE
- * Upload invoice/receipt file and extract transactions via the Transactions API.
- * Flow: upload file to media → get public URL → POST /api/transactions → return extracted transactions.
- * @param {string} clientId - The company ID (used as user_id)
+ * Upload invoice/receipt file, extract transactions via the AI Transactions API,
+ * then persist a financial document record on the backend.
+ *
+ * Flow: media upload → AI /api/transactions → POST /financials/documents/upload.
+ * The backend document id is what the Review page expects on the URL.
+ *
+ * @param {string} clientId - The company ID (used as user_id for the AI call)
  * @param {File} file - The invoice/receipt file to upload
- * @param {Object} invoiceData - Invoice metadata (invoiceType, etc.)
- * @returns {Promise<Object>} { transactions, count, errors, summary }
+ * @returns {Promise<Object>} { transactions, count, errors, summary, documentId, fileUrl }
  */
 export const uploadInvoice = async (clientId, file) => {
   // Step 1: Upload the file to get a public URL
@@ -207,7 +210,6 @@ export const uploadInvoice = async (clientId, file) => {
 
   const fileUrl = fileUploadResponse.data.url;
 
-  // Determine type based on file MIME type
   const isImage = file.type.startsWith('image/');
   const type = isImage ? 'image' : 'document';
 
@@ -226,13 +228,40 @@ export const uploadInvoice = async (clientId, file) => {
     }),
   });
 
-  const response = await res.json();
+  const ocrResponse = await res.json();
 
   if (!res.ok) {
-    throw new Error(response.message || `API Error: ${res.status}`);
+    throw new Error(ocrResponse.message || `API Error: ${res.status}`);
   }
 
-  return response;
+  const txn = ocrResponse?.transactions?.[0];
+  if (!txn) {
+    throw new Error('No transactions could be extracted from this document');
+  }
+
+  // Step 3: Persist a backend document record from the extracted fields
+  const createResponse = await makeRequest(
+    `/api/v${API_VERSION}/enterprise/clients/${clientId}/financials/documents/upload`,
+    'POST',
+    {
+      documentType: 'Invoice',
+      documentDate: typeof txn.date === 'string' ? txn.date.split('T')[0] : txn.date,
+      amount: txn.amount,
+      currency: txn.currency,
+      description: txn.description,
+      fileUrl,
+    }
+  );
+
+  if (!createResponse?.status || !createResponse?.data?.id) {
+    throw new Error(createResponse?.message || 'Failed to save document');
+  }
+
+  return {
+    ...ocrResponse,
+    documentId: createResponse.data.id,
+    fileUrl,
+  };
 };
 
 // ============================================

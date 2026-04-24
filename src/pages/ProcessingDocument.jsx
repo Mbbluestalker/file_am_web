@@ -72,9 +72,12 @@ const ProcessingDocument = () => {
   useEffect(() => {
     if (apiError) return;
     if (!apiDone || progress < 100 || !apiResult) return;
+    if (!apiResult.documentId) {
+      setApiError('Document could not be saved. Please try again.');
+      return;
+    }
     const timer = setTimeout(() => {
-      const targetId = apiResult.transactions?.[0]?.id || 'latest';
-      navigate(`/clients/${clientId}/financials/review/${targetId}`, {
+      navigate(`/clients/${clientId}/financials/review/${apiResult.documentId}`, {
         state: {
           fileName: fileName || file?.name,
           transactions: apiResult.transactions,
