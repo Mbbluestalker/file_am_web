@@ -6,7 +6,7 @@
 
 import axios from 'axios';
 
-const BASE_URL = 'https://api-v2.fileam.app';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api-v2.fileam.app';
 const API_VERSION = '1'; // Update this if API version changes
 
 /**

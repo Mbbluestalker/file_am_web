@@ -4,7 +4,7 @@
  * Base API configuration and request handler
  */
 
-export const BASE_URL = 'https://api-v2.fileam.app';
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api-v2.fileam.app';
 export const API_VERSION = '1';
 
 /**

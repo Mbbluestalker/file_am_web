@@ -9,7 +9,7 @@
 
 import { getAccessToken } from './apiConfig';
 
-export const AI_BASE_URL = 'https://api.ai.fileam.app';
+export const AI_BASE_URL = import.meta.env.VITE_AI_API_BASE_URL || 'https://api.ai.fileam.app';
 export const TAXGPT_CHAT_URL = `${AI_BASE_URL}/api/chat`;
 
 const buildHeaders = (extra = {}) => {

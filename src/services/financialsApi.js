@@ -13,7 +13,7 @@
 
 import { makeRequest, uploadFile as uploadMedia, API_VERSION, getAccessToken } from './apiConfig';
 
-const AI_BASE_URL = 'https://api.ai.fileam.app';
+const AI_BASE_URL = import.meta.env.VITE_AI_API_BASE_URL || 'https://api.ai.fileam.app';
 
 // ============================================
 // FINANCIAL SUMMARY & ANALYTICS

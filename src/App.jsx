@@ -29,8 +29,7 @@ import SetPassword from './pages/SetPassword';
 import ForgotPassword from './pages/ForgotPassword';
 import VerifyResetCode from './pages/VerifyResetCode';
 import AcceptInvitation from './pages/AcceptInvitation';
-import ProfitabilityAnalysis from './pages/ProfitabilityAnalysis';
-import BusinessHealthScore from './pages/BusinessHealthScore';
+// Profitability Analysis — pulled from MVP; backend endpoints not ready. Files retained in src/pages/.
 import ProtectedRoute from './components/ProtectedRoute';
 
 /**
@@ -157,15 +156,15 @@ function App() {
           </ProtectedRoute>
         } />
 
-        {/* Profitability Analysis Routes - Protected */}
+        {/* Profitability Analysis — ComingSoon for MVP (backend endpoints not ready) */}
         <Route path="/clients/:clientId/profitability" element={
           <ProtectedRoute>
-            <ProfitabilityAnalysis />
+            <ComingSoon />
           </ProtectedRoute>
         } />
         <Route path="/clients/:clientId/profitability/health-score" element={
           <ProtectedRoute>
-            <BusinessHealthScore />
+            <ComingSoon />
           </ProtectedRoute>
         } />
         <Route path="/clients/:clientId/evidence-vault" element={
