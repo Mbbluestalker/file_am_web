@@ -26,6 +26,14 @@ Screenshot *.jpeg
 screenshot*.png
 screenshot*.jpg
 
+# Local reference / working docs — kept on disk, not in the repo.
+API_SERVICES.md
+API_UI_MAPPING_ANALYSIS.md
+PROJECT_STRUCTURE.md
+
+# Postman collections are a local dev artifact — export on demand.
+*.postman_collection.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
