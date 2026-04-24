@@ -18,6 +18,14 @@ dist-ssr
 .env.*.local
 !.env.example
 
+# Dropped-in screenshots and scratch images — keep them local, not in the repo.
+WhatsApp Image *
+Screenshot *.png
+Screenshot *.jpg
+Screenshot *.jpeg
+screenshot*.png
+screenshot*.jpg
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
