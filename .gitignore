@@ -30,6 +30,7 @@ screenshot*.jpg
 API_SERVICES.md
 API_UI_MAPPING_ANALYSIS.md
 PROJECT_STRUCTURE.md
+CLAUDE.md
 
 # Postman collections are a local dev artifact — export on demand.
 *.postman_collection.json
